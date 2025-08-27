@@ -60,6 +60,10 @@ export interface IStorage {
   getAcademiaEngajamento(gymId: string): Promise<any[]>;
   getAcademiaAniversariantes(gymId: string): Promise<User[]>;
   getAcademiaRenovacoes(gymId: string): Promise<User[]>;
+  
+  // Admin operations
+  getAllUsers(): Promise<User[]>;
+  updateUserType(userId: string, userType: string): Promise<User>;
 }
 
 export class MemStorage implements IStorage {
@@ -402,6 +406,27 @@ export class MemStorage implements IStorage {
       );
       return userSessions.length === 0;
     });
+  }
+
+  // Admin module implementations
+  async getAllUsers(): Promise<User[]> {
+    return Array.from(this.users.values());
+  }
+
+  async updateUserType(userId: string, userType: string): Promise<User> {
+    const user = this.users.get(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const updatedUser: User = {
+      ...user,
+      userType,
+      updatedAt: new Date(),
+    };
+
+    this.users.set(userId, updatedUser);
+    return updatedUser;
   }
 }
 

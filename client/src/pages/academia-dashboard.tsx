@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import BottomNavigation from "../components/bottom-navigation";
-import { Users, Bus, Dumbbell, Cake, Gift, UserPlus, QrCode, FolderSync, Activity, AlertTriangle } from "lucide-react";
+import { Users, Bus, Dumbbell, Cake, Gift, UserPlus, QrCode, FolderSync, Activity, AlertTriangle, Settings } from "lucide-react";
 import { User } from "@shared/schema";
 
 export default function AcademiaDashboard() {
@@ -92,6 +92,15 @@ export default function AcademiaDashboard() {
             </div>
             
             <div className="flex items-center space-x-4">
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={() => window.location.href = "/admin/usuarios"}
+                data-testid="button-admin-users"
+              >
+                <Settings className="w-4 h-4 mr-2" />
+                Gestão de Usuários
+              </Button>
               <Button 
                 variant="outline"
                 size="sm"
