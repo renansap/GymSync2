@@ -35,6 +35,11 @@ function Router() {
 
   return (
     <Switch>
+      {/* Admin routes - accessible without main auth */}
+      <Route path="/admin/login" component={AdminLogin} />
+      <Route path="/admin/usuarios" component={AdminUsuarios} />
+      <Route path="/admin" component={AdminDashboard} />
+      
       {!isAuthenticated ? (
         <Route path="/" component={Landing} />
       ) : (
@@ -48,9 +53,6 @@ function Router() {
           <Route path="/academia/engajamento" component={AcademiaEngajamento} />
           <Route path="/academia/aniversariantes" component={AcademiaAniversariantes} />
           <Route path="/academia/renovacoes" component={AcademiaRenovacoes} />
-          <Route path="/admin/login" component={AdminLogin} />
-          <Route path="/admin" component={AdminDashboard} />
-          <Route path="/admin/usuarios" component={AdminUsuarios} />
         </>
       )}
       <Route component={NotFound} />
