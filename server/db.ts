@@ -1,16 +1,17 @@
-import { drizzle } from "drizzle-orm/neon-http";
-import { neon } from "@neondatabase/serverless";
+import { drizzle } from "drizzle-orm/postgres-js";
+import postgres from "postgres";
+import * as schema from "@shared/schema";
 
-// For now we'll use in-memory storage if DATABASE_URL is not properly configured
+// Database connection
 export let db: any = null;
 
 try {
-  if (process.env.DATABASE_URL && process.env.DATABASE_URL.includes('supabase.co')) {
-    const sql = neon(process.env.DATABASE_URL);
-    db = drizzle(sql);
+  if (process.env.DATABASE_URL) {
+    const sql = postgres(process.env.DATABASE_URL, { ssl: 'require' });
+    db = drizzle(sql, { schema });
     console.log("✅ Database connection established");
   } else {
-    console.log("⚠️  Using in-memory storage - Database not configured");
+    console.log("⚠️  Using in-memory storage - DATABASE_URL not configured");
   }
 } catch (error) {
   console.log("⚠️  Database connection failed, using in-memory storage:", error);
