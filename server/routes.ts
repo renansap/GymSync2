@@ -181,6 +181,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   };
 
+  // Admin middleware - only allows users with admin privileges
+  const requireAdminRole = async (req: any, res: any, next: any) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
+      
+      const userId = req.user.claims.sub;
+      const user = await storage.getUser(userId);
+      
+      // Allow specific admin users or users with 'academia' type
+      if (user && (user.userType === 'academia' || user.email === 'renansap@gmail.com')) {
+        next();
+      } else {
+        return res.status(403).json({ message: "Admin access required" });
+      }
+    } catch (error) {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+  };
+
   // Academia dashboard
   app.get('/api/academia/dashboard', isAuthenticated, requireAcademiaRole, async (req: any, res) => {
     try {
@@ -276,7 +297,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin routes for user management
-  app.get('/api/admin/users', isAuthenticated, async (req: any, res) => {
+  app.get('/api/admin/users', isAuthenticated, requireAdminRole, async (req: any, res) => {
     try {
       const users = await storage.getAllUsers();
       res.json(users);
@@ -286,7 +307,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/admin/users/:userId/type', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/admin/users/:userId/type', isAuthenticated, requireAdminRole, async (req: any, res) => {
     try {
       const { userId } = req.params;
       const { userType } = req.body;

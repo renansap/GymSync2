@@ -95,11 +95,11 @@ export default function AcademiaDashboard() {
               <Button 
                 variant="outline"
                 size="sm"
-                onClick={() => window.location.href = "/admin/usuarios"}
-                data-testid="button-admin-users"
+                onClick={() => window.location.href = "/admin"}
+                data-testid="button-admin-panel"
               >
                 <Settings className="w-4 h-4 mr-2" />
-                Gestão de Usuários
+                Painel Admin
               </Button>
               <Button 
                 variant="outline"
