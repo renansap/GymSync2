@@ -50,6 +50,16 @@ export interface IStorage {
   getGymMembers(gymId: string): Promise<User[]>;
   addGymMember(data: InsertGymMember): Promise<GymMember>;
   getBirthdayMembers(gymId: string): Promise<User[]>;
+  
+  // Academia module operations
+  getAcademiaDashboard(gymId: string): Promise<any>;
+  getAcademiaAlunos(gymId: string): Promise<User[]>;
+  createAcademiaAluno(data: any): Promise<User>;
+  getAcademiaPersonais(gymId: string): Promise<User[]>;
+  createAcademiaPersonal(data: any): Promise<User>;
+  getAcademiaEngajamento(gymId: string): Promise<any[]>;
+  getAcademiaAniversariantes(gymId: string): Promise<User[]>;
+  getAcademiaRenovacoes(gymId: string): Promise<User[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -132,6 +142,7 @@ export class MemStorage implements IStorage {
         lastName: userData.lastName ?? null,
         profileImageUrl: userData.profileImageUrl ?? null,
         userType: userData.userType ?? "aluno",
+        birthDate: userData.birthDate ?? null,
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -262,9 +273,134 @@ export class MemStorage implements IStorage {
     
     const members = await this.getGymMembers(gymId);
     return members.filter(member => {
-      if (!member.createdAt) return false;
-      const memberDate = new Date(member.createdAt);
-      return memberDate.getMonth() === todayMonth && memberDate.getDate() === todayDate;
+      if (!member.birthDate) return false;
+      const birthDate = new Date(member.birthDate);
+      return birthDate.getMonth() === todayMonth && birthDate.getDate() === todayDate;
+    });
+  }
+
+  // Academia module implementations
+  async getAcademiaDashboard(gymId: string): Promise<any> {
+    const allUsers = Array.from(this.users.values());
+    const totalAlunos = allUsers.filter(u => u.userType === 'aluno').length;
+    const totalPersonais = allUsers.filter(u => u.userType === 'personal').length;
+    
+    // Calculate active users (last workout in 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const recentSessions = Array.from(this.workoutSessions.values())
+      .filter(s => s.createdAt && new Date(s.createdAt) > sevenDaysAgo);
+    
+    const activeUserIds = new Set(recentSessions.map(s => s.userId));
+    const alunosAtivos = allUsers.filter(u => u.userType === 'aluno' && activeUserIds.has(u.id)).length;
+    
+    return {
+      totalAlunos,
+      alunosAtivos,
+      totalPersonais,
+      treinosHoje: recentSessions.filter(s => {
+        if (!s.createdAt) return false;
+        const today = new Date();
+        const sessionDate = new Date(s.createdAt);
+        return sessionDate.toDateString() === today.toDateString();
+      }).length
+    };
+  }
+
+  async getAcademiaAlunos(gymId: string): Promise<User[]> {
+    // Return all users with userType 'aluno'
+    return Array.from(this.users.values()).filter(u => u.userType === 'aluno');
+  }
+
+  async createAcademiaAluno(data: any): Promise<User> {
+    const aluno: User = {
+      id: randomUUID(),
+      email: data.email || null,
+      firstName: data.firstName || null,
+      lastName: data.lastName || null,
+      profileImageUrl: null,
+      userType: 'aluno',
+      birthDate: data.birthDate ? new Date(data.birthDate) : null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.users.set(aluno.id, aluno);
+    return aluno;
+  }
+
+  async getAcademiaPersonais(gymId: string): Promise<User[]> {
+    return Array.from(this.users.values()).filter(u => u.userType === 'personal');
+  }
+
+  async createAcademiaPersonal(data: any): Promise<User> {
+    const personal: User = {
+      id: randomUUID(),
+      email: data.email || null,
+      firstName: data.firstName || null,
+      lastName: data.lastName || null,
+      profileImageUrl: null,
+      userType: 'personal',
+      birthDate: data.birthDate ? new Date(data.birthDate) : null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.users.set(personal.id, personal);
+    return personal;
+  }
+
+  async getAcademiaEngajamento(gymId: string): Promise<any[]> {
+    const alunos = await this.getAcademiaAlunos(gymId);
+    const sessions = Array.from(this.workoutSessions.values());
+    
+    return alunos.map(aluno => {
+      const userSessions = sessions.filter(s => s.userId === aluno.id).sort((a, b) => {
+        if (!a.createdAt || !b.createdAt) return 0;
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      });
+      
+      const lastWorkout = userSessions[0]?.createdAt || null;
+      const totalWorkouts = userSessions.length;
+      
+      return {
+        ...aluno,
+        ultimoTreino: lastWorkout,
+        totalTreinos: totalWorkouts,
+        diasSemTreino: lastWorkout ? Math.floor((Date.now() - new Date(lastWorkout).getTime()) / (1000 * 60 * 60 * 24)) : 999
+      };
+    }).sort((a, b) => a.diasSemTreino - b.diasSemTreino);
+  }
+
+  async getAcademiaAniversariantes(gymId: string): Promise<User[]> {
+    const today = new Date();
+    const nextWeek = new Date();
+    nextWeek.setDate(today.getDate() + 7);
+    
+    const alunos = await this.getAcademiaAlunos(gymId);
+    return alunos.filter(aluno => {
+      if (!aluno.birthDate) return false;
+      
+      const birthDate = new Date(aluno.birthDate);
+      const thisYearBirthday = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+      
+      return thisYearBirthday >= today && thisYearBirthday <= nextWeek;
+    });
+  }
+
+  async getAcademiaRenovacoes(gymId: string): Promise<User[]> {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    const alunos = await this.getAcademiaAlunos(gymId);
+    const sessions = Array.from(this.workoutSessions.values());
+    
+    return alunos.filter(aluno => {
+      const userSessions = sessions.filter(s => 
+        s.userId === aluno.id && 
+        s.createdAt && 
+        new Date(s.createdAt) > thirtyDaysAgo
+      );
+      return userSessions.length === 0;
     });
   }
 }

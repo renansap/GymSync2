@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import BottomNavigation from "../components/bottom-navigation";
-import { Users, Bus, Dumbbell, Cake, Gift, UserPlus, QrCode, FolderSync } from "lucide-react";
+import { Users, Bus, Dumbbell, Cake, Gift, UserPlus, QrCode, FolderSync, Activity, AlertTriangle } from "lucide-react";
 import { User } from "@shared/schema";
 
 export default function AcademiaDashboard() {
@@ -30,15 +30,21 @@ export default function AcademiaDashboard() {
     }
   }, [isAuthenticated, isLoading, toast]);
 
+  // Fetch dashboard data
+  const { data: dashboardData = {} } = useQuery<any>({
+    queryKey: ["/api/academia/dashboard"],
+    enabled: isAuthenticated,
+  });
+
   // Fetch gym members
   const { data: members = [] } = useQuery<User[]>({
-    queryKey: ["/api/gym/members"],
+    queryKey: ["/api/academia/alunos"],
     enabled: isAuthenticated,
   });
 
   // Fetch birthday members
   const { data: birthdayMembers = [] } = useQuery<User[]>({
-    queryKey: ["/api/gym/birthdays"],
+    queryKey: ["/api/academia/aniversariantes"],
     enabled: isAuthenticated,
   });
 
@@ -53,9 +59,10 @@ export default function AcademiaDashboard() {
     );
   }
 
-  const totalMembers = members.length;
-  const totalTrainers = 12; // Mock data
-  const dailyWorkouts = 89; // Mock data
+  const totalMembers = dashboardData.totalAlunos || members.length;
+  const totalTrainers = dashboardData.totalPersonais || 0;
+  const dailyWorkouts = dashboardData.treinosHoje || 0;
+  const activeMembers = dashboardData.alunosAtivos || 0;
 
   const handleSendBirthdayMessage = (memberName: string) => {
     toast({
@@ -109,7 +116,8 @@ export default function AcademiaDashboard() {
                 </div>
                 <div className="ml-4">
                   <p className="text-2xl font-bold" data-testid="text-total-members">{totalMembers}</p>
-                  <p className="text-muted-foreground">Membros Ativos</p>
+                  <p className="text-muted-foreground">Total de Alunos</p>
+                  <p className="text-xs text-primary">{activeMembers} ativos (7 dias)</p>
                 </div>
               </div>
             </CardContent>
@@ -223,14 +231,61 @@ export default function AcademiaDashboard() {
           </Card>
         </div>
 
+        {/* Quick Navigation */}
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold mb-4">Navegação Rápida</h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Button 
+              variant="outline" 
+              className="h-20 flex-col"
+              onClick={() => window.location.href = '/academia/engajamento'}
+              data-testid="nav-engajamento"
+            >
+              <Activity className="w-6 h-6 mb-2" />
+              <span className="text-sm">Engajamento</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              className="h-20 flex-col"
+              onClick={() => window.location.href = '/academia/aniversariantes'}
+              data-testid="nav-aniversariantes"
+            >
+              <Cake className="w-6 h-6 mb-2" />
+              <span className="text-sm">Aniversários</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              className="h-20 flex-col"
+              onClick={() => window.location.href = '/academia/renovacoes'}
+              data-testid="nav-renovacoes"
+            >
+              <AlertTriangle className="w-6 h-6 mb-2" />
+              <span className="text-sm">Renovações</span>
+            </Button>
+            <Button 
+              variant="outline" 
+              className="h-20 flex-col"
+              onClick={() => window.location.href = '/academia/alunos'}
+              data-testid="nav-alunos"
+            >
+              <Users className="w-6 h-6 mb-2" />
+              <span className="text-sm">Ver Todos</span>
+            </Button>
+          </div>
+        </div>
+
         {/* Members and Trainers Management */}
         <div className="grid md:grid-cols-2 gap-6">
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-semibold">Membros Recentes</h3>
-                <Button size="sm" data-testid="button-add-member">
-                  <UserPlus className="mr-2 w-4 h-4" />Novo Membro
+                <Button 
+                  size="sm" 
+                  onClick={() => window.location.href = '/academia/alunos'}
+                  data-testid="button-manage-members"
+                >
+                  <UserPlus className="mr-2 w-4 h-4" />Gerenciar Alunos
                 </Button>
               </div>
               
@@ -280,9 +335,10 @@ export default function AcademiaDashboard() {
                 <Button 
                   size="sm"
                   className="bg-secondary text-secondary-foreground hover:bg-secondary/90"
-                  data-testid="button-add-trainer"
+                  onClick={() => window.location.href = '/academia/personais'}
+                  data-testid="button-manage-trainers"
                 >
-                  <UserPlus className="mr-2 w-4 h-4" />Novo Personal
+                  <UserPlus className="mr-2 w-4 h-4" />Gerenciar Personais
                 </Button>
               </div>
               

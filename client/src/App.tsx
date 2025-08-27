@@ -10,6 +10,11 @@ import Home from "./pages/home";
 import AlunoDashboard from "./pages/aluno-dashboard";
 import PersonalDashboard from "./pages/personal-dashboard";
 import AcademiaDashboard from "./pages/academia-dashboard";
+import AcademiaAlunos from "./pages/academia-alunos";
+import AcademiaPersonais from "./pages/academia-personais";
+import AcademiaEngajamento from "./pages/academia-engajamento";
+import AcademiaAniversariantes from "./pages/academia-aniversariantes";
+import AcademiaRenovacoes from "./pages/academia-renovacoes";
 
 function Router() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -35,6 +40,11 @@ function Router() {
           <Route path="/aluno" component={AlunoDashboard} />
           <Route path="/personal" component={PersonalDashboard} />
           <Route path="/academia" component={AcademiaDashboard} />
+          <Route path="/academia/alunos" component={AcademiaAlunos} />
+          <Route path="/academia/personais" component={AcademiaPersonais} />
+          <Route path="/academia/engajamento" component={AcademiaEngajamento} />
+          <Route path="/academia/aniversariantes" component={AcademiaAniversariantes} />
+          <Route path="/academia/renovacoes" component={AcademiaRenovacoes} />
         </>
       )}
       <Route component={NotFound} />

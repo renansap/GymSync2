@@ -171,6 +171,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Academia module routes
+  const requireAcademiaRole = (req: any, res: any, next: any) => {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    // For now, allow all authenticated users to test - in production, check user role
+    next();
+  };
+
+  // Academia dashboard
+  app.get('/api/academia/dashboard', isAuthenticated, requireAcademiaRole, async (req: any, res) => {
+    try {
+      const gymId = req.user.claims.sub;
+      const dashboard = await storage.getAcademiaDashboard(gymId);
+      res.json(dashboard);
+    } catch (error) {
+      console.error("Error fetching academia dashboard:", error);
+      res.status(500).json({ message: "Failed to fetch dashboard data" });
+    }
+  });
+
+  // Academia alunos
+  app.get('/api/academia/alunos', isAuthenticated, requireAcademiaRole, async (req: any, res) => {
+    try {
+      const gymId = req.user.claims.sub;
+      const alunos = await storage.getAcademiaAlunos(gymId);
+      res.json(alunos);
+    } catch (error) {
+      console.error("Error fetching alunos:", error);
+      res.status(500).json({ message: "Failed to fetch alunos" });
+    }
+  });
+
+  app.post('/api/academia/alunos', isAuthenticated, requireAcademiaRole, async (req: any, res) => {
+    try {
+      const gymId = req.user.claims.sub;
+      const aluno = await storage.createAcademiaAluno({ ...req.body, gymId });
+      res.json(aluno);
+    } catch (error) {
+      console.error("Error creating aluno:", error);
+      res.status(500).json({ message: "Failed to create aluno" });
+    }
+  });
+
+  // Academia personais
+  app.get('/api/academia/personais', isAuthenticated, requireAcademiaRole, async (req: any, res) => {
+    try {
+      const gymId = req.user.claims.sub;
+      const personais = await storage.getAcademiaPersonais(gymId);
+      res.json(personais);
+    } catch (error) {
+      console.error("Error fetching personais:", error);
+      res.status(500).json({ message: "Failed to fetch personais" });
+    }
+  });
+
+  app.post('/api/academia/personais', isAuthenticated, requireAcademiaRole, async (req: any, res) => {
+    try {
+      const gymId = req.user.claims.sub;
+      const personal = await storage.createAcademiaPersonal({ ...req.body, gymId });
+      res.json(personal);
+    } catch (error) {
+      console.error("Error creating personal:", error);
+      res.status(500).json({ message: "Failed to create personal" });
+    }
+  });
+
+  // Academia engajamento
+  app.get('/api/academia/engajamento', isAuthenticated, requireAcademiaRole, async (req: any, res) => {
+    try {
+      const gymId = req.user.claims.sub;
+      const engajamento = await storage.getAcademiaEngajamento(gymId);
+      res.json(engajamento);
+    } catch (error) {
+      console.error("Error fetching engajamento:", error);
+      res.status(500).json({ message: "Failed to fetch engagement data" });
+    }
+  });
+
+  // Academia aniversariantes
+  app.get('/api/academia/aniversariantes', isAuthenticated, requireAcademiaRole, async (req: any, res) => {
+    try {
+      const gymId = req.user.claims.sub;
+      const aniversariantes = await storage.getAcademiaAniversariantes(gymId);
+      res.json(aniversariantes);
+    } catch (error) {
+      console.error("Error fetching aniversariantes:", error);
+      res.status(500).json({ message: "Failed to fetch birthday members" });
+    }
+  });
+
+  // Academia renovações
+  app.get('/api/academia/renovacoes', isAuthenticated, requireAcademiaRole, async (req: any, res) => {
+    try {
+      const gymId = req.user.claims.sub;
+      const renovacoes = await storage.getAcademiaRenovacoes(gymId);
+      res.json(renovacoes);
+    } catch (error) {
+      console.error("Error fetching renovações:", error);
+      res.status(500).json({ message: "Failed to fetch renewal data" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
