@@ -1,6 +1,6 @@
 import { useLocation } from "wouter";
 import { cn } from "@/lib/utils";
-import { Dumbbell, Bus, Building } from "lucide-react";
+import { Dumbbell, Bus, Building, LogOut } from "lucide-react";
 
 interface BottomNavigationProps {
   activeView: "aluno" | "personal" | "academia";
@@ -15,7 +15,7 @@ export default function BottomNavigation({ activeView }: BottomNavigationProps) 
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border md:hidden">
-      <div className="grid grid-cols-3 h-16">
+      <div className="grid grid-cols-4 h-16">
         <button 
           onClick={() => handleNavigation('aluno')}
           className={cn(

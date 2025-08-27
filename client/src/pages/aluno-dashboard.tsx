@@ -217,13 +217,14 @@ export default function AlunoDashboard() {
             </div>
             
             <div className="flex items-center space-x-4">
-              <button 
+              <Button 
+                variant="outline"
+                size="sm"
                 onClick={() => window.location.href = "/api/logout"}
-                className="text-muted-foreground hover:text-foreground"
                 data-testid="button-logout"
               >
-                <i className="fas fa-sign-out-alt text-lg"></i>
-              </button>
+                Sair
+              </Button>
             </div>
           </div>
         </div>
