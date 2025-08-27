@@ -1,9 +1,10 @@
 import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
+import { User } from "@shared/schema";
 
 export default function Home() {
-  const { user } = useAuth();
+  const { user } = useAuth() as { user: User | undefined };
   const [, navigate] = useLocation();
 
   useEffect(() => {

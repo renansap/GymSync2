@@ -4,12 +4,16 @@ import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import BottomNavigation from "@/components/bottom-navigation";
+import BottomNavigation from "../components/bottom-navigation";
 import { Users, Bus, Dumbbell, Cake, Gift, UserPlus, QrCode, FolderSync } from "lucide-react";
+import { User } from "@shared/schema";
 
 export default function AcademiaDashboard() {
   const { toast } = useToast();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth() as { 
+    isAuthenticated: boolean; 
+    isLoading: boolean;
+  };
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -27,13 +31,13 @@ export default function AcademiaDashboard() {
   }, [isAuthenticated, isLoading, toast]);
 
   // Fetch gym members
-  const { data: members = [] } = useQuery({
+  const { data: members = [] } = useQuery<User[]>({
     queryKey: ["/api/gym/members"],
     enabled: isAuthenticated,
   });
 
   // Fetch birthday members
-  const { data: birthdayMembers = [] } = useQuery({
+  const { data: birthdayMembers = [] } = useQuery<User[]>({
     queryKey: ["/api/gym/birthdays"],
     enabled: isAuthenticated,
   });
@@ -163,7 +167,7 @@ export default function AcademiaDashboard() {
               </h3>
               <div className="space-y-3">
                 {birthdayMembers.length > 0 ? (
-                  birthdayMembers.map((member, index) => (
+                  birthdayMembers.map((member: User, index: number) => (
                     <div key={member.id} className="flex items-center justify-between p-3 bg-destructive/5 rounded-lg border border-destructive/20">
                       <div className="flex items-center">
                         <div className="w-10 h-10 bg-destructive/10 rounded-full flex items-center justify-center mr-3">
@@ -231,7 +235,7 @@ export default function AcademiaDashboard() {
               
               <div className="space-y-3">
                 {members.length > 0 ? (
-                  members.slice(0, 3).map((member, index) => (
+                  members.slice(0, 3).map((member: User, index: number) => (
                     <div key={member.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                       <div className="flex items-center">
                         <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center mr-3">

@@ -112,13 +112,26 @@ export class MemStorage implements IStorage {
     const existingUser = Array.from(this.users.values()).find(u => u.id === userData.id);
     
     if (existingUser) {
-      const updatedUser = { ...existingUser, ...userData, updatedAt: new Date() };
+      const updatedUser: User = { 
+        ...existingUser, 
+        ...userData, 
+        email: userData.email ?? existingUser.email,
+        firstName: userData.firstName ?? existingUser.firstName,
+        lastName: userData.lastName ?? existingUser.lastName,
+        profileImageUrl: userData.profileImageUrl ?? existingUser.profileImageUrl,
+        updatedAt: new Date() 
+      };
       this.users.set(existingUser.id, updatedUser);
       return updatedUser;
     } else {
       const newUser: User = {
         ...userData,
         id: userData.id || randomUUID(),
+        email: userData.email ?? null,
+        firstName: userData.firstName ?? null,
+        lastName: userData.lastName ?? null,
+        profileImageUrl: userData.profileImageUrl ?? null,
+        userType: userData.userType ?? "aluno",
         createdAt: new Date(),
         updatedAt: new Date(),
       };
@@ -139,6 +152,10 @@ export class MemStorage implements IStorage {
     const exercise: Exercise = {
       ...exerciseData,
       id: randomUUID(),
+      description: exerciseData.description ?? null,
+      equipment: exerciseData.equipment ?? null,
+      instructions: exerciseData.instructions ?? null,
+      gifUrl: exerciseData.gifUrl ?? null,
       createdAt: new Date(),
     };
     this.exercises.set(exercise.id, exercise);
@@ -178,6 +195,11 @@ export class MemStorage implements IStorage {
     const session: WorkoutSession = {
       ...sessionData,
       id: randomUUID(),
+      duration: sessionData.duration ?? null,
+      endTime: sessionData.endTime ?? null,
+      totalWeight: sessionData.totalWeight ?? null,
+      completed: sessionData.completed ?? false,
+      exercises: sessionData.exercises ?? null,
       createdAt: new Date(),
     };
     this.workoutSessions.set(session.id, session);
@@ -225,6 +247,8 @@ export class MemStorage implements IStorage {
     const member: GymMember = {
       ...data,
       id: randomUUID(),
+      endDate: data.endDate ?? null,
+      isActive: data.isActive ?? true,
       createdAt: new Date(),
     };
     this.gymMembers.set(member.id, member);

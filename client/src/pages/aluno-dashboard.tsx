@@ -2,19 +2,24 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { isUnauthorizedError } from "@/lib/authUtils";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import WorkoutTimer from "@/components/workout-timer";
-import BottomNavigation from "@/components/bottom-navigation";
+import WorkoutTimer from "../components/workout-timer";
+import BottomNavigation from "../components/bottom-navigation";
 import { Dumbbell, Flame, Clock, Weight } from "lucide-react";
+import { User, Workout, WorkoutSession } from "@shared/schema";
 
 export default function AlunoDashboard() {
   const { toast } = useToast();
-  const { isAuthenticated, isLoading, user } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth() as { 
+    isAuthenticated: boolean; 
+    isLoading: boolean; 
+    user: User | undefined;
+  };
   const [objetivo, setObjetivo] = useState("hipertrofia");
   const [nivel, setNivel] = useState("iniciante");
   const [currentSet, setCurrentSet] = useState({ peso: "", reps: "" });
@@ -35,19 +40,19 @@ export default function AlunoDashboard() {
   }, [isAuthenticated, isLoading, toast]);
 
   // Fetch workouts
-  const { data: workouts = [] } = useQuery({
+  const { data: workouts = [] } = useQuery<Workout[]>({
     queryKey: ["/api/workouts"],
     enabled: isAuthenticated,
   });
 
   // Fetch workout sessions
-  const { data: sessions = [] } = useQuery({
+  const { data: sessions = [] } = useQuery<WorkoutSession[]>({
     queryKey: ["/api/workout-sessions"],
     enabled: isAuthenticated,
   });
 
   // Fetch active session
-  const { data: activeSession, refetch: refetchActiveSession } = useQuery({
+  const { data: activeSession, refetch: refetchActiveSession } = useQuery<WorkoutSession | null>({
     queryKey: ["/api/workout-sessions/active"],
     enabled: isAuthenticated,
   });
@@ -58,6 +63,7 @@ export default function AlunoDashboard() {
       return await apiRequest("POST", "/api/ia/treino", data);
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/workouts"] });
       toast({
         title: "Treino gerado!",
         description: "Seu treino personalizado foi criado com IA.",
@@ -92,6 +98,7 @@ export default function AlunoDashboard() {
       });
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/workout-sessions"] });
       refetchActiveSession();
       toast({
         title: "Treino iniciado!",
@@ -127,6 +134,7 @@ export default function AlunoDashboard() {
       });
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/workout-sessions"] });
       refetchActiveSession();
       toast({
         title: "Treino finalizado!",
@@ -297,7 +305,7 @@ export default function AlunoDashboard() {
                       <div>
                         <p className="font-medium" data-testid="text-workout-name">{workouts[0]?.name}</p>
                         <p className="text-sm text-muted-foreground" data-testid="text-workout-info">
-                          {Array.isArray(workouts[0]?.exercises) ? workouts[0].exercises.length : 0} exercícios • 45 min
+                          {Array.isArray(workouts[0]?.exercises) ? (workouts[0].exercises as any[]).length : 0} exercícios • 45 min
                         </p>
                       </div>
                     </div>
@@ -378,7 +386,7 @@ export default function AlunoDashboard() {
                   Treino Ativo
                 </h3>
                 <div className="flex items-center space-x-4">
-                  <WorkoutTimer startTime={activeSession.startTime} />
+                  <WorkoutTimer startTime={activeSession.startTime.toString()} />
                   <Button 
                     onClick={handleEndWorkout}
                     disabled={endWorkoutMutation.isPending}
@@ -466,7 +474,7 @@ export default function AlunoDashboard() {
           <CardContent className="p-6">
             <h3 className="text-lg font-semibold mb-4">Histórico de Progresso</h3>
             <div className="space-y-4">
-              {sessions.slice(0, 5).map((session, index) => (
+              {sessions.slice(0, 5).map((session: WorkoutSession, index: number) => (
                 <div key={session.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                   <div className="flex items-center">
                     <div className="w-10 h-10 bg-accent/10 rounded-lg flex items-center justify-center mr-3">

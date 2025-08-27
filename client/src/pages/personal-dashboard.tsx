@@ -4,12 +4,16 @@ import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import BottomNavigation from "@/components/bottom-navigation";
+import BottomNavigation from "../components/bottom-navigation";
 import { Users, CalendarCheck, Trophy, ChevronRight } from "lucide-react";
+import { User } from "@shared/schema";
 
 export default function PersonalDashboard() {
   const { toast } = useToast();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth() as { 
+    isAuthenticated: boolean; 
+    isLoading: boolean;
+  };
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -27,7 +31,7 @@ export default function PersonalDashboard() {
   }, [isAuthenticated, isLoading, toast]);
 
   // Fetch clients
-  const { data: clients = [] } = useQuery({
+  const { data: clients = [] } = useQuery<User[]>({
     queryKey: ["/api/personal/clients"],
     enabled: isAuthenticated,
   });
@@ -132,7 +136,7 @@ export default function PersonalDashboard() {
               
               <div className="space-y-3">
                 {clients.length > 0 ? (
-                  clients.slice(0, 3).map((client, index) => (
+                  clients.slice(0, 3).map((client: User, index: number) => (
                     <div key={client.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
                       <div className="flex items-center">
                         <div className="w-10 h-10 bg-primary/10 rounded-full flex items-center justify-center mr-3">
@@ -170,7 +174,7 @@ export default function PersonalDashboard() {
               <div className="space-y-4">
                 <select className="w-full px-3 py-2 border border-border rounded-md bg-input" data-testid="select-client">
                   <option>Selecionar Cliente</option>
-                  {clients.map(client => (
+                  {clients.map((client: User) => (
                     <option key={client.id} value={client.id}>
                       {client.firstName} {client.lastName}
                     </option>
