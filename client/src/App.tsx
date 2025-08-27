@@ -17,6 +17,7 @@ import AcademiaAniversariantes from "./pages/academia-aniversariantes";
 import AcademiaRenovacoes from "./pages/academia-renovacoes";
 import AdminUsuarios from "./pages/admin-usuarios";
 import AdminDashboard from "./pages/admin-dashboard";
+import AdminLogin from "./pages/admin-login";
 
 function Router() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -47,6 +48,7 @@ function Router() {
           <Route path="/academia/engajamento" component={AcademiaEngajamento} />
           <Route path="/academia/aniversariantes" component={AcademiaAniversariantes} />
           <Route path="/academia/renovacoes" component={AcademiaRenovacoes} />
+          <Route path="/admin/login" component={AdminLogin} />
           <Route path="/admin" component={AdminDashboard} />
           <Route path="/admin/usuarios" component={AdminUsuarios} />
         </>

@@ -19,10 +19,16 @@ export default function AdminUsuarios() {
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [newUserType, setNewUserType] = useState<string>("");
 
+  // Check admin authentication
+  const { data: adminAuth, isLoading: isLoadingAdminAuth } = useQuery({
+    queryKey: ["/api/admin/check"],
+    retry: false,
+  });
+
   // Fetch all users
   const { data: users = [], isLoading: isLoadingUsers } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
-    enabled: isAuthenticated,
+    enabled: adminAuth?.authenticated,
   });
 
   // Update user type mutation
@@ -98,12 +104,30 @@ export default function AdminUsuarios() {
     total: users.length
   };
 
-  if (isLoading) {
+  if (isLoading || isLoadingAdminAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-muted-foreground">Carregando...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Redirect to admin login if not authenticated
+  if (!adminAuth?.authenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+            <Shield className="w-8 h-8 text-red-600" />
+          </div>
+          <h2 className="text-2xl font-bold mb-4">Acesso Administrativo Restrito</h2>
+          <p className="text-muted-foreground mb-4">Você precisa fazer login como administrador para acessar esta área</p>
+          <Button onClick={() => window.location.href = "/admin/login"}>
+            Login Administrativo
+          </Button>
         </div>
       </div>
     );

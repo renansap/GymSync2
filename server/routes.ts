@@ -74,7 +74,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(workout);
     } catch (error) {
       console.error("Error creating workout:", error);
-      res.status(500).json({ message: "Failed to create workout" });
+      res.status(400).json({ message: "Failed to create workout" });
+    }
+  });
+
+  // Exercise routes
+  app.get('/api/exercises', isAuthenticated, async (req: any, res) => {
+    try {
+      const exercises = await storage.getAllExercises();
+      res.json(exercises);
+    } catch (error) {
+      console.error("Error fetching exercises:", error);
+      res.status(500).json({ message: "Failed to fetch exercises" });
     }
   });
 
@@ -90,17 +101,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/workout-sessions/active', isAuthenticated, async (req: any, res) => {
-    try {
-      const userId = req.user.claims.sub;
-      const session = await storage.getActiveWorkoutSession(userId);
-      res.json(session);
-    } catch (error) {
-      console.error("Error fetching active session:", error);
-      res.status(500).json({ message: "Failed to fetch active session" });
-    }
-  });
-
   app.post('/api/workout-sessions', isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user.claims.sub;
@@ -109,42 +109,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(session);
     } catch (error) {
       console.error("Error creating workout session:", error);
-      res.status(500).json({ message: "Failed to create workout session" });
+      res.status(400).json({ message: "Failed to create workout session" });
     }
   });
 
-  app.patch('/api/workout-sessions/:id', isAuthenticated, async (req: any, res) => {
+  app.get('/api/workout-sessions/active', isAuthenticated, async (req: any, res) => {
     try {
-      const { id } = req.params;
-      const updates = req.body;
-      const session = await storage.updateWorkoutSession(id, updates);
+      const userId = req.user.claims.sub;
+      const activeSession = await storage.getActiveWorkoutSession(userId);
+      res.json(activeSession);
+    } catch (error) {
+      console.error("Error fetching active session:", error);
+      res.status(500).json({ message: "Failed to fetch active session" });
+    }
+  });
+
+  app.patch('/api/workout-sessions/:sessionId/finish', isAuthenticated, async (req: any, res) => {
+    try {
+      const { sessionId } = req.params;
+      const userId = req.user.claims.sub;
+      const session = await storage.finishWorkoutSession(sessionId, userId);
       res.json(session);
     } catch (error) {
-      console.error("Error updating workout session:", error);
-      res.status(500).json({ message: "Failed to update workout session" });
-    }
-  });
-
-  // Exercise routes
-  app.get('/api/exercises', async (req, res) => {
-    try {
-      const exercises = await storage.getExercises();
-      res.json(exercises);
-    } catch (error) {
-      console.error("Error fetching exercises:", error);
-      res.status(500).json({ message: "Failed to fetch exercises" });
-    }
-  });
-
-  // Personal trainer routes
-  app.get('/api/personal/clients', isAuthenticated, async (req: any, res) => {
-    try {
-      const personalId = req.user.claims.sub;
-      const clients = await storage.getPersonalClients(personalId);
-      res.json(clients);
-    } catch (error) {
-      console.error("Error fetching clients:", error);
-      res.status(500).json({ message: "Failed to fetch clients" });
+      console.error("Error finishing workout session:", error);
+      res.status(400).json({ message: "Failed to finish workout session" });
     }
   });
 
@@ -181,26 +169,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     next();
   };
 
-  // Admin middleware - only allows users with admin privileges
-  const requireAdminRole = async (req: any, res: any, next: any) => {
+  // Admin authentication middleware
+  const requireAdminAuth = (req: any, res: any, next: any) => {
+    if (!req.session?.adminAuthenticated) {
+      return res.status(401).json({ message: "Admin authentication required" });
+    }
+    next();
+  };
+
+  // Admin login route
+  app.post('/api/admin/login', async (req, res) => {
     try {
-      if (!req.user) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
+      const { username, password } = req.body;
       
-      const userId = req.user.claims.sub;
-      const user = await storage.getUser(userId);
-      
-      // Allow specific admin users or users with 'academia' type
-      if (user && (user.userType === 'academia' || user.email === 'renansap@gmail.com')) {
-        next();
+      // Simple admin credentials (in production, use proper hashing)
+      if (username === 'admin' && password === 'admin123') {
+        req.session.adminAuthenticated = true;
+        res.json({ success: true, message: "Admin login successful" });
       } else {
-        return res.status(403).json({ message: "Admin access required" });
+        res.status(401).json({ message: "Invalid admin credentials" });
       }
     } catch (error) {
-      return res.status(403).json({ message: "Admin access required" });
+      console.error("Error in admin login:", error);
+      res.status(500).json({ message: "Login failed" });
     }
-  };
+  });
+
+  // Admin logout route
+  app.post('/api/admin/logout', (req, res) => {
+    req.session.adminAuthenticated = false;
+    res.json({ success: true, message: "Admin logout successful" });
+  });
+
+  // Admin check route
+  app.get('/api/admin/check', (req, res) => {
+    res.json({ authenticated: !!req.session?.adminAuthenticated });
+  });
 
   // Academia dashboard
   app.get('/api/academia/dashboard', isAuthenticated, requireAcademiaRole, async (req: any, res) => {
@@ -297,7 +301,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Admin routes for user management
-  app.get('/api/admin/users', isAuthenticated, requireAdminRole, async (req: any, res) => {
+  app.get('/api/admin/users', requireAdminAuth, async (req: any, res) => {
     try {
       const users = await storage.getAllUsers();
       res.json(users);
@@ -307,7 +311,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/admin/users/:userId/type', isAuthenticated, requireAdminRole, async (req: any, res) => {
+  app.patch('/api/admin/users/:userId/type', requireAdminAuth, async (req: any, res) => {
     try {
       const { userId } = req.params;
       const { userType } = req.body;

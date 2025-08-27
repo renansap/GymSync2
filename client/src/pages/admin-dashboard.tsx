@@ -9,10 +9,16 @@ import { User } from "@shared/schema";
 export default function AdminDashboard() {
   const { isAuthenticated, isLoading, user } = useAuth();
 
+  // Check admin authentication
+  const { data: adminAuth, isLoading: isLoadingAdminAuth } = useQuery({
+    queryKey: ["/api/admin/check"],
+    retry: false,
+  });
+
   // Fetch all users for admin stats
   const { data: allUsers = [], isLoading: isLoadingUsers } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
-    enabled: isAuthenticated,
+    enabled: adminAuth?.authenticated,
   });
 
   // Calculate stats
@@ -24,7 +30,7 @@ export default function AdminDashboard() {
     withoutType: allUsers.filter(u => !u.userType || u.userType === '').length
   };
 
-  if (isLoading) {
+  if (isLoading || isLoadingAdminAuth) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -35,14 +41,18 @@ export default function AdminDashboard() {
     );
   }
 
-  if (!isAuthenticated) {
+  // Redirect to admin login if not authenticated
+  if (!adminAuth?.authenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">Acesso Restrito</h2>
-          <p className="text-muted-foreground mb-4">Você precisa estar logado para acessar esta área</p>
-          <Button onClick={() => window.location.href = "/api/login"}>
-            Fazer Login
+          <div className="mx-auto w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mb-4">
+            <Shield className="w-8 h-8 text-red-600" />
+          </div>
+          <h2 className="text-2xl font-bold mb-4">Acesso Administrativo Restrito</h2>
+          <p className="text-muted-foreground mb-4">Você precisa fazer login como administrador para acessar esta área</p>
+          <Button onClick={() => window.location.href = "/admin/login"}>
+            Login Administrativo
           </Button>
         </div>
       </div>
@@ -64,15 +74,18 @@ export default function AdminDashboard() {
             
             <div className="flex items-center space-x-4">
               <span className="text-sm text-muted-foreground">
-                {user?.firstName} {user?.lastName}
+                Administrador
               </span>
               <Button 
                 variant="outline"
                 size="sm"
-                onClick={() => window.location.href = "/api/logout"}
-                data-testid="button-logout"
+                onClick={() => {
+                  fetch('/api/admin/logout', { method: 'POST' })
+                    .then(() => window.location.href = '/admin/login')
+                }}
+                data-testid="button-admin-logout"
               >
-                Sair
+                Sair Admin
               </Button>
             </div>
           </div>
