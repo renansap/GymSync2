@@ -77,8 +77,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Logout mutation
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest('POST', '/api/auth/logout');
-      return await response.json();
+      // Use the Replit Auth logout route
+      window.location.href = '/api/logout';
+      return { success: true };
     },
     onSuccess: () => {
       queryClient.setQueryData(['/api/auth/me'], null);

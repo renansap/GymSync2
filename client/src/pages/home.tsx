@@ -10,7 +10,17 @@ export default function Home() {
   useEffect(() => {
     if (user?.userType) {
       // Redirect to appropriate dashboard based on user type
-      navigate(`/${user.userType}`);
+      let redirectPath = '/';
+      
+      if (user.userType === 'aluno') {
+        redirectPath = '/aluno';
+      } else if (user.userType === 'personal') {
+        redirectPath = '/personal';
+      } else if (user.userType === 'academia') {
+        redirectPath = '/academia';
+      }
+      
+      navigate(redirectPath);
     }
   }, [user, navigate]);
 
@@ -18,7 +28,7 @@ export default function Home() {
     <div className="min-h-screen flex items-center justify-center">
       <div className="text-center">
         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-        <p className="text-muted-foreground">Redirecionando...</p>
+        <p className="text-muted-foreground">Redirecionando para seu dashboard...</p>
       </div>
     </div>
   );

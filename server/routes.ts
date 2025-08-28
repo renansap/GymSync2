@@ -8,9 +8,6 @@ import { insertWorkoutSchema, insertWorkoutSessionSchema, loginSchema, passwordR
 import bcrypt from 'bcrypt';
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Auth middleware
-  await setupAuth(app);
-
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
     try {
@@ -20,6 +17,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching user:", error);
       res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Smart redirect route based on user type
+  app.get('/api/auth/redirect', isAuthenticated, async (req: any, res) => {
+    try {
+      console.log('🔍 Redirect route accessed');
+      const userId = req.user.claims.sub;
+      console.log('👤 User ID:', userId);
+      
+      const user = await storage.getUser(userId);
+      console.log('👤 User data:', user);
+      
+      // Redirect based on user type
+      let redirectUrl = '/';
+      
+      if (user?.userType === 'aluno') {
+        redirectUrl = '/aluno';
+        console.log('🎯 Redirecting aluno to:', redirectUrl);
+      } else if (user?.userType === 'personal') {
+        redirectUrl = '/personal';
+        console.log('🎯 Redirecting personal to:', redirectUrl);
+      } else if (user?.userType === 'academia') {
+        redirectUrl = '/academia';
+        console.log('🎯 Redirecting academia to:', redirectUrl);
+      } else {
+        console.log('🎯 No user type found, redirecting to home');
+        redirectUrl = '/';
+      }
+      
+      console.log('🚀 Final redirect URL:', redirectUrl);
+      res.redirect(redirectUrl);
+    } catch (error) {
+      console.error("❌ Error in smart redirect:", error);
+      // Fallback to home page if there's an error
+      res.redirect('/');
     }
   });
 
@@ -490,11 +523,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/auth/logout', (req, res) => {
-    req.session.destroy(() => {
-      res.json({ success: true });
-    });
-  });
+
 
   app.get('/api/auth/me', async (req, res) => {
     try {
