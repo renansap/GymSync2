@@ -176,7 +176,7 @@ export default function AdminDashboard() {
         {/* Main Admin Functions */}
         <div className="mb-8">
           <h3 className="text-xl font-semibold mb-4">Principais Funcionalidades</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Link href="/admin/usuarios">
               <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
                 <CardHeader className="pb-3">
@@ -215,83 +215,9 @@ export default function AdminDashboard() {
               </Card>
             </Link>
 
-            
-
-            <Card className="hover:shadow-md transition-shadow h-full">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center text-base">
-                  <Database className="w-5 h-5 mr-2 text-orange-600" />
-                  Sistema de Banco
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-3">
-                  Monitore performance e integridade dos dados
-                </p>
-                <Button size="sm" className="w-full" variant="outline" data-testid="button-database">
-                  Em desenvolvimento
-                </Button>
-              </CardContent>
-            </Card>
           </div>
         </div>
 
-        {/* Additional Admin Tools */}
-        <div className="mb-8">
-          <h3 className="text-xl font-semibold mb-4">Ferramentas Administrativas</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <Card className="hover:shadow-md transition-shadow">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Activity className="w-5 h-5 mr-2" />
-                  Logs de Sistema
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground mb-4">
-                  Monitore atividades e eventos do sistema
-                </p>
-                <Button className="w-full" variant="outline" disabled data-testid="button-logs">
-                  Em desenvolvimento
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-md transition-shadow">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <FileText className="w-5 h-5 mr-2" />
-                  Relatórios
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground mb-4">
-                  Gere relatórios detalhados de uso e performance
-                </p>
-                <Button className="w-full" variant="outline" disabled data-testid="button-reports">
-                  Em desenvolvimento
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="hover:shadow-md transition-shadow">
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Shield className="w-5 h-5 mr-2" />
-                  Segurança
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground mb-4">
-                  Configure políticas de segurança e auditoria
-                </p>
-                <Button className="w-full" variant="outline" disabled data-testid="button-security">
-                  Em desenvolvimento
-                </Button>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
 
         {/* System Status */}
         <Card>

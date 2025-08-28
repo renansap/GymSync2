@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import BottomNavigation from "../components/bottom-navigation";
-import { ArrowLeft, Settings, Mail, Users, Shield, Database, FileText, Calendar, TrendingUp, UserCheck } from "lucide-react";
+import { ArrowLeft, Settings, Mail, Send, Shield, Database, FileText, Activity, Bell, UserCheck } from "lucide-react";
 import { Link } from "wouter";
 
 export default function AdminConfiguracoes() {
@@ -45,24 +45,24 @@ export default function AdminConfiguracoes() {
 
   const configSections = [
     {
-      title: "Sistema de Email",
-      description: "Gerencie templates de email para diferentes tipos de usuário",
+      title: "Templates de Email",
+      description: "Configure e gerencie modelos de email do sistema",
       icon: Mail,
       link: "/admin/templates",
-      badge: "Templates",
-      color: "bg-blue-100 text-blue-800"
+      badge: "Ativo",
+      color: "bg-green-100 text-green-700"
     },
     {
-      title: "Gerenciamento de Usuários",
-      description: "Administre todos os usuários do sistema (alunos, personal trainers, academias)",
-      icon: Users,
-      link: "/admin/usuarios",
-      badge: "CRUD",
-      color: "bg-green-100 text-green-800"
+      title: "Configurações SMTP", 
+      description: "Configure servidor de email e autenticação",
+      icon: Send,
+      link: "/admin/smtp",
+      badge: "Em breve",
+      color: "bg-gray-100 text-gray-600"
     },
     {
-      title: "Configurações do Banco",
-      description: "Visualize e gerencie configurações do banco de dados",
+      title: "Banco de Dados",
+      description: "Monitore performance e integridade dos dados",
       icon: Database,
       link: "/admin/database",
       badge: "Em breve",
@@ -70,9 +70,41 @@ export default function AdminConfiguracoes() {
     },
     {
       title: "Logs do Sistema",
-      description: "Monitore atividades e logs de sistema",
-      icon: FileText,
+      description: "Monitore atividades e eventos do sistema",
+      icon: Activity,
       link: "/admin/logs",
+      badge: "Em breve",
+      color: "bg-gray-100 text-gray-600"
+    },
+    {
+      title: "Relatórios",
+      description: "Gere relatórios detalhados de uso e performance",
+      icon: FileText,
+      link: "/admin/reports",
+      badge: "Em breve",
+      color: "bg-gray-100 text-gray-600"
+    },
+    {
+      title: "Segurança",
+      description: "Configure políticas de segurança e auditoria",
+      icon: Shield,
+      link: "/admin/security",
+      badge: "Em breve",
+      color: "bg-gray-100 text-gray-600"
+    },
+    {
+      title: "Configurações Gerais",
+      description: "Configurações básicas do sistema e aplicação",
+      icon: Settings,
+      link: "/admin/general",
+      badge: "Em breve", 
+      color: "bg-gray-100 text-gray-600"
+    },
+    {
+      title: "Notificações",
+      description: "Configure alertas e notificações do sistema",
+      icon: Bell,
+      link: "/admin/notifications",
       badge: "Em breve",
       color: "bg-gray-100 text-gray-600"
     }
