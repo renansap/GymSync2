@@ -9,11 +9,10 @@ export let isDbConnected = false;
 async function initializeDatabase() {
   try {
     if (process.env.DATABASE_URL) {
+      // Use Replit's internal PostgreSQL instead of Supabase due to IPv6 issues
       const sql = postgres(process.env.DATABASE_URL, { 
-        ssl: 'require',
         max: 1, // Limit connections for serverless
         connect_timeout: 10,
-        socket_timeout: 10,
         idle_timeout: 10,
       });
       db = drizzle(sql, { schema });
@@ -22,13 +21,25 @@ async function initializeDatabase() {
       await sql`SELECT 1 as test`;
       isDbConnected = true;
       console.log("✅ Database connection established and tested");
+      
+      // Initialize storage after database is ready
+      const { initializeStorage } = await import("./storage");
+      initializeStorage();
+      
     } else {
       console.log("⚠️  Using in-memory storage - DATABASE_URL not configured");
+      // Initialize storage without database
+      const { initializeStorage } = await import("./storage");
+      initializeStorage();
     }
   } catch (error) {
-    console.log("⚠️  Database connection failed, using in-memory storage:", error.message);
+    console.log("⚠️  Database connection failed, using in-memory storage:", (error as Error).message);
     db = null;
     isDbConnected = false;
+    
+    // Initialize storage in fallback mode
+    const { initializeStorage } = await import("./storage");
+    initializeStorage();
   }
 }
 

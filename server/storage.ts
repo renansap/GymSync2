@@ -27,6 +27,7 @@ export interface IStorage {
   // User operations (IMPORTANT: mandatory for Replit Auth)
   getUser(id: string): Promise<User | undefined>;
   upsertUser(user: UpsertUser): Promise<User>;
+  createUser(user: { name: string; email: string; userType: string }): Promise<User>;
   
   // Exercise operations
   getExercises(): Promise<Exercise[]>;
@@ -415,6 +416,22 @@ export class MemStorage implements IStorage {
     return Array.from(this.users.values());
   }
 
+  async createUser(userData: { name: string; email: string; userType: string }): Promise<User> {
+    const user: User = {
+      id: randomUUID(),
+      email: userData.email,
+      firstName: userData.name.split(' ')[0] || null,
+      lastName: userData.name.split(' ').slice(1).join(' ') || null,
+      profileImageUrl: null,
+      userType: userData.userType,
+      birthDate: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.users.set(user.id, user);
+    return user;
+  }
+
   async updateUserType(userId: string, userType: string): Promise<User> {
     const user = this.users.get(userId);
     if (!user) {
@@ -701,6 +718,25 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(users);
   }
 
+  async createUser(userData: { name: string; email: string; userType: string }): Promise<User> {
+    if (!db) throw new Error("Database not available");
+    
+    const userToInsert = {
+      id: randomUUID(),
+      email: userData.email,
+      firstName: userData.name.split(' ')[0] || null,
+      lastName: userData.name.split(' ').slice(1).join(' ') || null,
+      profileImageUrl: null,
+      userType: userData.userType,
+      birthDate: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const [newUser] = await db.insert(users).values(userToInsert).returning();
+    return newUser;
+  }
+
   async updateUserType(userId: string, userType: string): Promise<User> {
     if (!db) throw new Error("Database not available");
     const [updatedUser] = await db
@@ -712,5 +748,16 @@ export class DatabaseStorage implements IStorage {
   }
 }
 
-// Use DatabaseStorage if database is available, otherwise fallback to MemStorage
-export const storage = db ? new DatabaseStorage() : new MemStorage();
+// Storage implementation - will be initialized dynamically
+export let storage: IStorage;
+
+// Initialize storage based on database availability
+export function initializeStorage() {
+  if (db) {
+    storage = new DatabaseStorage();
+    console.log("📊 Using DatabaseStorage with PostgreSQL");
+  } else {
+    storage = new MemStorage();
+    console.log("💾 Using MemStorage (in-memory)");
+  }
+}
