@@ -116,7 +116,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Exercise routes
   app.get('/api/exercises', isAuthenticated, async (req: any, res) => {
     try {
-      const exercises = await storage.getAllExercises();
+      const exercises = await storage.getExercises();
       res.json(exercises);
     } catch (error) {
       console.error("Error fetching exercises:", error);
@@ -163,7 +163,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { sessionId } = req.params;
       const userId = req.user.claims.sub;
-      const session = await storage.finishWorkoutSession(sessionId, userId);
+      const session = await storage.updateWorkoutSession(sessionId, { completed: true, endTime: new Date() });
       res.json(session);
     } catch (error) {
       console.error("Error finishing workout session:", error);
@@ -206,7 +206,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Admin authentication middleware
   const requireAdminAuth = (req: any, res: any, next: any) => {
-    if (!req.session?.adminAuthenticated) {
+    if (!(req.session as any)?.adminAuthenticated) {
       return res.status(401).json({ message: "Admin authentication required" });
     }
     next();
@@ -219,7 +219,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Simple admin credentials (in production, use proper hashing)
       if (username === 'admin' && password === 'admin123') {
-        req.session.adminAuthenticated = true;
+        (req.session as any).adminAuthenticated = true;
         res.json({ success: true, message: "Admin login successful" });
       } else {
         res.status(401).json({ message: "Invalid admin credentials" });
@@ -232,13 +232,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Admin logout route
   app.post('/api/admin/logout', (req, res) => {
-    req.session.adminAuthenticated = false;
+    (req.session as any).adminAuthenticated = false;
     res.json({ success: true, message: "Admin logout successful" });
   });
 
   // Admin check route
   app.get('/api/admin/check', (req, res) => {
-    res.json({ authenticated: !!req.session?.adminAuthenticated });
+    res.json({ authenticated: !!(req.session as any)?.adminAuthenticated });
   });
 
   // Academia dashboard

@@ -623,6 +623,64 @@ export class MemStorage implements IStorage {
   async deleteEmailTemplate(templateId: string): Promise<boolean> {
     return this.emailTemplates.delete(templateId);
   }
+
+  // Gym/Academia admin operations (memory)
+  private gyms: Map<string, Gym> = new Map();
+
+  async getAllGyms(): Promise<Gym[]> {
+    return Array.from(this.gyms.values());
+  }
+
+  async getGym(gymId: string): Promise<Gym | undefined> {
+    return this.gyms.get(gymId);
+  }
+
+  async createGym(gymData: InsertGym): Promise<Gym> {
+    const gym: Gym = {
+      ...gymData,
+      id: randomUUID(),
+      description: gymData.description ?? null,
+      isActive: gymData.isActive ?? null,
+      inviteCode: this.generateInviteCode(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.gyms.set(gym.id, gym);
+    return gym;
+  }
+
+  async updateGym(gymId: string, gymData: UpdateGym): Promise<Gym | undefined> {
+    const gym = this.gyms.get(gymId);
+    if (!gym) {
+      return undefined;
+    }
+
+    const updatedGym: Gym = {
+      ...gym,
+      ...gymData,
+      updatedAt: new Date(),
+    };
+
+    this.gyms.set(gymId, updatedGym);
+    return updatedGym;
+  }
+
+  async deleteGym(gymId: string): Promise<boolean> {
+    return this.gyms.delete(gymId);
+  }
+
+  async getGymByInviteCode(inviteCode: string): Promise<Gym | undefined> {
+    return Array.from(this.gyms.values()).find(g => g.inviteCode === inviteCode);
+  }
+
+  private generateInviteCode(): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 8; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  }
 }
 
 export class DatabaseStorage implements IStorage {
