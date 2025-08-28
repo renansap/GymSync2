@@ -19,6 +19,8 @@ import {
   type InsertGymMember,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
+import { db } from "./db";
+import { eq, and, desc } from "drizzle-orm";
 
 // Interface for storage operations
 export interface IStorage {
@@ -430,4 +432,285 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export class DatabaseStorage implements IStorage {
+  // User operations (IMPORTANT: mandatory for Replit Auth)
+  async getUser(id: string): Promise<User | undefined> {
+    if (!db) return undefined;
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
+  }
+
+  async upsertUser(user: UpsertUser): Promise<User> {
+    if (!db) throw new Error("Database not available");
+    
+    const [existingUser] = await db.select().from(users).where(eq(users.id, user.id));
+    
+    if (existingUser) {
+      const [updatedUser] = await db
+        .update(users)
+        .set({ ...user, updatedAt: new Date() })
+        .where(eq(users.id, user.id))
+        .returning();
+      return updatedUser;
+    } else {
+      const [newUser] = await db
+        .insert(users)
+        .values({ ...user, createdAt: new Date(), updatedAt: new Date() })
+        .returning();
+      return newUser;
+    }
+  }
+
+  // Exercise operations
+  async getExercises(): Promise<Exercise[]> {
+    if (!db) return [];
+    return await db.select().from(exercises);
+  }
+
+  async getExercisesByMuscleGroup(muscleGroup: string): Promise<Exercise[]> {
+    if (!db) return [];
+    return await db.select().from(exercises).where(eq(exercises.muscleGroup, muscleGroup));
+  }
+
+  async createExercise(exercise: InsertExercise): Promise<Exercise> {
+    if (!db) throw new Error("Database not available");
+    const [newExercise] = await db
+      .insert(exercises)
+      .values({ ...exercise, id: randomUUID(), createdAt: new Date() })
+      .returning();
+    return newExercise;
+  }
+
+  // Workout operations
+  async getWorkoutsByUser(userId: string): Promise<Workout[]> {
+    if (!db) return [];
+    return await db.select().from(workouts).where(eq(workouts.userId, userId));
+  }
+
+  async getWorkout(id: string): Promise<Workout | undefined> {
+    if (!db) return undefined;
+    const [workout] = await db.select().from(workouts).where(eq(workouts.id, id));
+    return workout || undefined;
+  }
+
+  async createWorkout(workout: InsertWorkout): Promise<Workout> {
+    if (!db) throw new Error("Database not available");
+    const [newWorkout] = await db
+      .insert(workouts)
+      .values({ ...workout, id: randomUUID(), createdAt: new Date() })
+      .returning();
+    return newWorkout;
+  }
+
+  // Workout session operations
+  async getWorkoutSessionsByUser(userId: string): Promise<WorkoutSession[]> {
+    if (!db) return [];
+    return await db.select().from(workoutSessions).where(eq(workoutSessions.userId, userId));
+  }
+
+  async getActiveWorkoutSession(userId: string): Promise<WorkoutSession | undefined> {
+    if (!db) return undefined;
+    const [session] = await db
+      .select()
+      .from(workoutSessions)
+      .where(and(eq(workoutSessions.userId, userId), eq(workoutSessions.completed, false)));
+    return session || undefined;
+  }
+
+  async createWorkoutSession(session: InsertWorkoutSession): Promise<WorkoutSession> {
+    if (!db) throw new Error("Database not available");
+    const [newSession] = await db
+      .insert(workoutSessions)
+      .values({ ...session, id: randomUUID(), createdAt: new Date() })
+      .returning();
+    return newSession;
+  }
+
+  async updateWorkoutSession(id: string, updates: Partial<WorkoutSession>): Promise<WorkoutSession> {
+    if (!db) throw new Error("Database not available");
+    const [updatedSession] = await db
+      .update(workoutSessions)
+      .set({ ...updates, updatedAt: new Date() })
+      .where(eq(workoutSessions.id, id))
+      .returning();
+    return updatedSession;
+  }
+
+  // Personal trainer operations
+  async getPersonalClients(personalId: string): Promise<User[]> {
+    if (!db) return [];
+    const clients = await db
+      .select({ user: users })
+      .from(personalClients)
+      .innerJoin(users, eq(personalClients.clientId, users.id))
+      .where(eq(personalClients.personalId, personalId));
+    return clients.map((c: any) => c.user);
+  }
+
+  async addPersonalClient(data: InsertPersonalClient): Promise<PersonalClient> {
+    if (!db) throw new Error("Database not available");
+    const [newClient] = await db
+      .insert(personalClients)
+      .values({ ...data, id: randomUUID(), createdAt: new Date() })
+      .returning();
+    return newClient;
+  }
+
+  // Gym operations
+  async getGymMembers(gymId: string): Promise<User[]> {
+    if (!db) return [];
+    const members = await db
+      .select({ user: users })
+      .from(gymMembers)
+      .innerJoin(users, eq(gymMembers.memberId, users.id))
+      .where(eq(gymMembers.gymId, gymId));
+    return members.map((m: any) => m.user);
+  }
+
+  async addGymMember(data: InsertGymMember): Promise<GymMember> {
+    if (!db) throw new Error("Database not available");
+    const [newMember] = await db
+      .insert(gymMembers)
+      .values({ ...data, id: randomUUID(), createdAt: new Date() })
+      .returning();
+    return newMember;
+  }
+
+  async getBirthdayMembers(gymId: string): Promise<User[]> {
+    if (!db) return [];
+    const today = new Date();
+    const nextWeek = new Date();
+    nextWeek.setDate(today.getDate() + 7);
+    
+    const members = await this.getGymMembers(gymId);
+    return members.filter(member => {
+      if (!member.birthDate) return false;
+      
+      const birthDate = new Date(member.birthDate);
+      const thisYearBirthday = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+      
+      return thisYearBirthday >= today && thisYearBirthday <= nextWeek;
+    });
+  }
+
+  // Academia module operations (simplified for database version)
+  async getAcademiaDashboard(gymId: string): Promise<any> {
+    if (!db) return { totalAlunos: 0, totalPersonais: 0, alunosAtivos: 0, sessoesSemana: 0 };
+    
+    const alunos = await this.getAcademiaAlunos(gymId);
+    const personais = await this.getAcademiaPersonais(gymId);
+    
+    return {
+      totalAlunos: alunos.length,
+      totalPersonais: personais.length,
+      alunosAtivos: alunos.filter(a => a.userType === 'aluno').length,
+      sessoesSemana: 0 // Simplified for now
+    };
+  }
+
+  async getAcademiaAlunos(gymId: string): Promise<User[]> {
+    if (!db) return [];
+    const members = await this.getGymMembers(gymId);
+    return members.filter(m => m.userType === 'aluno');
+  }
+
+  async createAcademiaAluno(data: any): Promise<User> {
+    if (!db) throw new Error("Database not available");
+    
+    const userData = {
+      id: randomUUID(),
+      name: data.name,
+      email: data.email,
+      userType: 'aluno',
+      birthDate: data.birthDate ? new Date(data.birthDate) : null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const [newUser] = await db.insert(users).values(userData).returning();
+    
+    // Add to gym members
+    await this.addGymMember({
+      gymId: data.gymId,
+      memberId: newUser.id,
+      membershipType: 'aluno',
+      startDate: new Date(),
+    });
+    
+    return newUser;
+  }
+
+  async getAcademiaPersonais(gymId: string): Promise<User[]> {
+    if (!db) return [];
+    const members = await this.getGymMembers(gymId);
+    return members.filter(m => m.userType === 'personal');
+  }
+
+  async createAcademiaPersonal(data: any): Promise<User> {
+    if (!db) throw new Error("Database not available");
+    
+    const userData = {
+      id: randomUUID(),
+      name: data.name,
+      email: data.email,
+      userType: 'personal',
+      birthDate: data.birthDate ? new Date(data.birthDate) : null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const [newUser] = await db.insert(users).values(userData).returning();
+    
+    // Add to gym members
+    await this.addGymMember({
+      gymId: data.gymId,
+      memberId: newUser.id,
+      membershipType: 'personal',
+      startDate: new Date(),
+    });
+    
+    return newUser;
+  }
+
+  async getAcademiaEngajamento(gymId: string): Promise<any[]> {
+    if (!db) return [];
+    // Simplified implementation for database version
+    const alunos = await this.getAcademiaAlunos(gymId);
+    return alunos.map(aluno => ({
+      id: aluno.id,
+      nome: aluno.name || aluno.firstName || 'Nome não informado',
+      ultimoTreino: null, // Would need to calculate from sessions
+      diasSemTreino: 0,
+      nivel: 'baixo'
+    }));
+  }
+
+  async getAcademiaAniversariantes(gymId: string): Promise<User[]> {
+    return await this.getBirthdayMembers(gymId);
+  }
+
+  async getAcademiaRenovacoes(gymId: string): Promise<User[]> {
+    if (!db) return [];
+    // Simplified implementation - would need more complex logic
+    return await this.getAcademiaAlunos(gymId);
+  }
+
+  // Admin operations
+  async getAllUsers(): Promise<User[]> {
+    if (!db) return [];
+    return await db.select().from(users);
+  }
+
+  async updateUserType(userId: string, userType: string): Promise<User> {
+    if (!db) throw new Error("Database not available");
+    const [updatedUser] = await db
+      .update(users)
+      .set({ userType, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return updatedUser;
+  }
+}
+
+// Use DatabaseStorage if database is available, otherwise fallback to MemStorage
+export const storage = db ? new DatabaseStorage() : new MemStorage();

@@ -31,6 +31,7 @@ export const users = pgTable("users", {
   email: varchar("email").unique(),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
+  name: varchar("name"), // For display name
   profileImageUrl: varchar("profile_image_url"),
   userType: varchar("user_type").notNull().default("aluno"), // aluno, personal, academia
   birthDate: timestamp("birth_date"), // For birthday tracking

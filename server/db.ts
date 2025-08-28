@@ -7,7 +7,10 @@ export let db: any = null;
 
 try {
   if (process.env.DATABASE_URL) {
-    const sql = postgres(process.env.DATABASE_URL, { ssl: 'require' });
+    const sql = postgres(process.env.DATABASE_URL, { 
+      ssl: 'require',
+      max: 1, // Limit connections for serverless
+    });
     db = drizzle(sql, { schema });
     console.log("✅ Database connection established");
   } else {
