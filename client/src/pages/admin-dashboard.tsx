@@ -3,14 +3,15 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import BottomNavigation from "../components/bottom-navigation";
-import { Users, Shield, Database, Settings, Activity, UserCog } from "lucide-react";
+import { Users, Shield, Database, Settings, Activity, UserCog, Mail, FileText, Cog } from "lucide-react";
 import { User } from "@shared/schema";
+import { Link } from "wouter";
 
 export default function AdminDashboard() {
   const { isAuthenticated, isLoading, user } = useAuth();
 
   // Check admin authentication
-  const { data: adminAuth, isLoading: isLoadingAdminAuth } = useQuery({
+  const { data: adminAuth, isLoading: isLoadingAdminAuth } = useQuery<{ authenticated: boolean }>({
     queryKey: ["/api/admin/check"],
     retry: false,
   });
@@ -42,7 +43,7 @@ export default function AdminDashboard() {
   }
 
   // Redirect to admin login if not authenticated
-  if (!adminAuth?.authenticated) {
+  if (!adminAuth || !adminAuth.authenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -172,58 +173,141 @@ export default function AdminDashboard() {
           </Card>
         </div>
 
-        {/* Admin Actions */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-          <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => window.location.href = '/admin/usuarios'}>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center">
-                <Users className="w-5 h-5 mr-3 text-blue-600" />
-                Gestão de Usuários
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground text-sm mb-3">
-                Gerencie tipos de usuário, permissões e configure roles
-              </p>
-              <Button size="sm" className="w-full" data-testid="button-manage-users">
-                Gerenciar Usuários
-              </Button>
-            </CardContent>
-          </Card>
+        {/* Main Admin Functions */}
+        <div className="mb-8">
+          <h3 className="text-xl font-semibold mb-4">Principais Funcionalidades</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Link href="/admin/usuarios">
+              <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center text-base">
+                    <Users className="w-5 h-5 mr-2 text-blue-600" />
+                    Gestão de Usuários
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Gerencie alunos, personal trainers e academias
+                  </p>
+                  <Button size="sm" className="w-full" data-testid="button-manage-users">
+                    Acessar
+                  </Button>
+                </CardContent>
+              </Card>
+            </Link>
 
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center">
-                <Database className="w-5 h-5 mr-3 text-green-600" />
-                Sistema de Banco
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground text-sm mb-3">
-                Monitore performance, backups e integridade dos dados
-              </p>
-              <Button size="sm" className="w-full" variant="outline" data-testid="button-database">
-                Em Breve
-              </Button>
-            </CardContent>
-          </Card>
+            <Link href="/admin/configuracoes">
+              <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center text-base">
+                    <Cog className="w-5 h-5 mr-2 text-purple-600" />
+                    Configurações Globais
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Templates de email e configurações do sistema
+                  </p>
+                  <Button size="sm" className="w-full" data-testid="button-settings">
+                    Acessar
+                  </Button>
+                </CardContent>
+              </Card>
+            </Link>
 
-          <Card className="hover:shadow-md transition-shadow">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center">
-                <Settings className="w-5 h-5 mr-3 text-purple-600" />
-                Configurações Globais
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-muted-foreground text-sm mb-3">
-                Configure parâmetros do sistema e funcionalidades
-              </p>
-              <Button size="sm" className="w-full" variant="outline" data-testid="button-settings">
-                Em Breve
-              </Button>
-            </CardContent>
-          </Card>
+            <Link href="/admin/templates">
+              <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center text-base">
+                    <Mail className="w-5 h-5 mr-2 text-green-600" />
+                    Templates de Email
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Gerencie emails para diferentes tipos de usuário
+                  </p>
+                  <Button size="sm" className="w-full" data-testid="button-email-templates">
+                    Acessar
+                  </Button>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Card className="hover:shadow-md transition-shadow h-full">
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center text-base">
+                  <Database className="w-5 h-5 mr-2 text-orange-600" />
+                  Sistema de Banco
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Monitore performance e integridade dos dados
+                </p>
+                <Button size="sm" className="w-full" variant="outline" data-testid="button-database">
+                  Em desenvolvimento
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+
+        {/* Additional Admin Tools */}
+        <div className="mb-8">
+          <h3 className="text-xl font-semibold mb-4">Ferramentas Administrativas</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card className="hover:shadow-md transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Activity className="w-5 h-5 mr-2" />
+                  Logs de Sistema
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground mb-4">
+                  Monitore atividades e eventos do sistema
+                </p>
+                <Button className="w-full" variant="outline" disabled data-testid="button-logs">
+                  Em desenvolvimento
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-md transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <FileText className="w-5 h-5 mr-2" />
+                  Relatórios
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground mb-4">
+                  Gere relatórios detalhados de uso e performance
+                </p>
+                <Button className="w-full" variant="outline" disabled data-testid="button-reports">
+                  Em desenvolvimento
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-md transition-shadow">
+              <CardHeader>
+                <CardTitle className="flex items-center">
+                  <Shield className="w-5 h-5 mr-2" />
+                  Segurança
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground mb-4">
+                  Configure políticas de segurança e auditoria
+                </p>
+                <Button className="w-full" variant="outline" disabled data-testid="button-security">
+                  Em desenvolvimento
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
         {/* System Status */}

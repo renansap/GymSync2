@@ -19,6 +19,7 @@ import AdminUsuarios from "./pages/admin-usuarios";
 import AdminDashboard from "./pages/admin-dashboard";
 import AdminLogin from "./pages/admin-login";
 import AdminTemplates from "./pages/admin-templates";
+import AdminConfiguracoes from "./pages/admin-configuracoes";
 import TestGifs from "./pages/test-gifs";
 
 function Router() {
@@ -41,6 +42,7 @@ function Router() {
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/usuarios" component={AdminUsuarios} />
       <Route path="/admin/templates" component={AdminTemplates} />
+      <Route path="/admin/configuracoes" component={AdminConfiguracoes} />
       <Route path="/admin" component={AdminDashboard} />
       
       {/* Test route for GIFs */}

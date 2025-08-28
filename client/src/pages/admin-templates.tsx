@@ -11,9 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import BottomNavigation from "../components/bottom-navigation";
-import { Mail, Plus, Edit, Trash2, Send, Shield, Eye } from "lucide-react";
+import { Mail, Plus, Edit, Trash2, Send, Shield, Eye, ArrowLeft } from "lucide-react";
 import { EmailTemplate } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
+import { Link } from "wouter";
 
 export default function AdminTemplates() {
   const { toast } = useToast();
@@ -29,7 +30,7 @@ export default function AdminTemplates() {
   const [testEmail, setTestEmail] = useState("");
 
   // Check admin authentication
-  const { data: adminAuth, isLoading: isLoadingAdminAuth } = useQuery({
+  const { data: adminAuth, isLoading: isLoadingAdminAuth } = useQuery<{ authenticated: boolean }>({
     queryKey: ["/api/admin/check"],
     retry: false,
   });
@@ -42,8 +43,10 @@ export default function AdminTemplates() {
 
   // Create template mutation
   const createTemplateMutation = useMutation({
-    mutationFn: (templateData: any) => 
-      apiRequest("POST", "/api/admin/email-templates", templateData),
+    mutationFn: async (templateData: any) => {
+      const response = await apiRequest("POST", "/api/admin/email-templates", templateData);
+      return response.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/email-templates"] });
       setShowCreateForm(false);
@@ -63,8 +66,10 @@ export default function AdminTemplates() {
 
   // Update template mutation
   const updateTemplateMutation = useMutation({
-    mutationFn: ({ templateId, templateData }: { templateId: string; templateData: any }) => 
-      apiRequest("PATCH", `/api/admin/email-templates/${templateId}`, templateData),
+    mutationFn: async ({ templateId, templateData }: { templateId: string; templateData: any }) => {
+      const response = await apiRequest("PATCH", `/api/admin/email-templates/${templateId}`, templateData);
+      return response.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/email-templates"] });
       setShowEditForm(false);
@@ -214,7 +219,7 @@ export default function AdminTemplates() {
   }
 
   // Redirect to admin login if not authenticated
-  if (!adminAuth?.authenticated) {
+  if (!adminAuth || !adminAuth.authenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -237,11 +242,19 @@ export default function AdminTemplates() {
       <header className="bg-card shadow-sm border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <h1 className="text-xl font-bold text-primary" data-testid="app-title">GymSync</h1>
-              <span className="ml-3 px-2 py-1 bg-muted text-muted-foreground text-xs rounded-full">
-                Templates de Email
-              </span>
+            <div className="flex items-center space-x-4">
+              <Link href="/admin/configuracoes" data-testid="button-back">
+                <Button variant="ghost" size="sm">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Voltar
+                </Button>
+              </Link>
+              <div className="flex items-center">
+                <h1 className="text-xl font-bold text-primary" data-testid="app-title">GymSync</h1>
+                <span className="ml-3 px-2 py-1 bg-muted text-muted-foreground text-xs rounded-full">
+                  Templates de Email
+                </span>
+              </div>
             </div>
             
             <div className="flex items-center space-x-4">

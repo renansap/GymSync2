@@ -10,9 +10,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { UserForm } from "@/components/user-form";
 import BottomNavigation from "../components/bottom-navigation";
-import { Users, Search, Shield, Edit, Plus, Trash2, Eye } from "lucide-react";
+import { Users, Search, Shield, Edit, Plus, Trash2, Eye, ArrowLeft } from "lucide-react";
 import { User } from "@shared/schema";
 import { apiRequest } from "@/lib/queryClient";
+import { Link } from "wouter";
 
 export default function AdminUsuarios() {
   const { toast } = useToast();
@@ -29,7 +30,7 @@ export default function AdminUsuarios() {
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
   // Check admin authentication
-  const { data: adminAuth, isLoading: isLoadingAdminAuth } = useQuery({
+  const { data: adminAuth, isLoading: isLoadingAdminAuth } = useQuery<{ authenticated: boolean }>({
     queryKey: ["/api/admin/check"],
     retry: false,
   });
@@ -42,11 +43,10 @@ export default function AdminUsuarios() {
 
   // Create user mutation
   const createUserMutation = useMutation({
-    mutationFn: (userData: any) => 
-      apiRequest("/api/admin/users", {
-        method: "POST",
-        body: JSON.stringify(userData),
-      }),
+    mutationFn: async (userData: any) => {
+      const response = await apiRequest("POST", "/api/admin/users", userData);
+      return response.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       setShowCreateForm(false);
@@ -66,11 +66,10 @@ export default function AdminUsuarios() {
 
   // Update user mutation
   const updateUserMutation = useMutation({
-    mutationFn: ({ userId, userData }: { userId: string; userData: any }) => 
-      apiRequest(`/api/admin/users/${userId}`, {
-        method: "PATCH",
-        body: JSON.stringify(userData),
-      }),
+    mutationFn: async ({ userId, userData }: { userId: string; userData: any }) => {
+      const response = await apiRequest("PATCH", `/api/admin/users/${userId}`, userData);
+      return response.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       setShowEditForm(false);
@@ -91,10 +90,10 @@ export default function AdminUsuarios() {
 
   // Delete user mutation
   const deleteUserMutation = useMutation({
-    mutationFn: (userId: string) => 
-      apiRequest(`/api/admin/users/${userId}`, {
-        method: "DELETE",
-      }),
+    mutationFn: async (userId: string) => {
+      const response = await apiRequest("DELETE", `/api/admin/users/${userId}`);
+      return response.json();
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       setShowDeleteDialog(false);
@@ -115,11 +114,10 @@ export default function AdminUsuarios() {
 
   // Update user type mutation (quick edit)
   const updateUserTypeMutation = useMutation({
-    mutationFn: ({ userId, userType }: { userId: string; userType: string }) => 
-      apiRequest(`/api/admin/users/${userId}/type`, {
-        method: "PATCH",
-        body: JSON.stringify({ userType }),
-      }),
+    mutationFn: async ({ userId, userType }: { userId: string; userType: string }) => {
+      const response = await apiRequest("PATCH", `/api/admin/users/${userId}/type`, { userType });
+      return response.json();
+    },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       setEditingUser(null);
@@ -230,7 +228,7 @@ export default function AdminUsuarios() {
   }
 
   // Redirect to admin login if not authenticated
-  if (!adminAuth?.authenticated) {
+  if (!adminAuth || !adminAuth.authenticated) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
@@ -253,11 +251,19 @@ export default function AdminUsuarios() {
       <header className="bg-card shadow-sm border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <h1 className="text-xl font-bold text-primary" data-testid="app-title">GymSync</h1>
-              <span className="ml-3 px-2 py-1 bg-muted text-muted-foreground text-xs rounded-full">
-                Gestão de Usuários
-              </span>
+            <div className="flex items-center space-x-4">
+              <Link href="/admin" data-testid="button-back">
+                <Button variant="ghost" size="sm">
+                  <ArrowLeft className="w-4 h-4 mr-2" />
+                  Voltar
+                </Button>
+              </Link>
+              <div className="flex items-center">
+                <h1 className="text-xl font-bold text-primary" data-testid="app-title">GymSync</h1>
+                <span className="ml-3 px-2 py-1 bg-muted text-muted-foreground text-xs rounded-full">
+                  Gestão de Usuários
+                </span>
+              </div>
             </div>
             
             <div className="flex items-center space-x-4">
