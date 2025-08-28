@@ -311,6 +311,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create new user (admin only)
+  app.post('/api/admin/users', requireAdminAuth, async (req: any, res) => {
+    try {
+      const { name, email, userType } = req.body;
+      
+      if (!name || !email || !userType) {
+        return res.status(400).json({ message: "Missing required fields: name, email, userType" });
+      }
+      
+      if (!['aluno', 'personal', 'academia'].includes(userType)) {
+        return res.status(400).json({ message: "Invalid user type" });
+      }
+      
+      const user = await storage.createUser({ name, email, userType });
+      res.json(user);
+    } catch (error) {
+      console.error("Error creating user:", error);
+      res.status(500).json({ message: "Failed to create user" });
+    }
+  });
+
   app.patch('/api/admin/users/:userId/type', requireAdminAuth, async (req: any, res) => {
     try {
       const { userId } = req.params;
