@@ -268,7 +268,7 @@ export default function AdminConfiguracoes() {
               <CardContent className="p-4">
                 <div className="flex items-center space-x-3">
                   <div className="p-2 bg-orange-100 rounded-lg">
-                    <TrendingUp className="w-5 h-5 text-orange-600" />
+                    <Activity className="w-5 h-5 text-orange-600" />
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Sistema</p>
