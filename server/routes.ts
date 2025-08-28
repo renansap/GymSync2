@@ -497,12 +497,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.get('/api/auth/me', async (req, res) => {
-    if (!req.session?.userId) {
-      return res.status(401).json({ message: "Não autenticado" });
-    }
-    
     try {
-      const user = await storage.getUser(req.session.userId);
+      let userId: string | undefined;
+      
+      // Check for Replit Auth (OAuth) - user is in req.user with claims
+      if (req.isAuthenticated && req.isAuthenticated() && req.user && (req.user as any).claims) {
+        userId = (req.user as any).claims.sub;
+      }
+      // Check for manual auth - userId is in session
+      else if (req.session?.userId) {
+        userId = req.session.userId as string;
+      }
+      
+      if (!userId) {
+        return res.status(401).json({ message: "Não autenticado" });
+      }
+      
+      const user = await storage.getUser(userId);
       if (!user) {
         return res.status(401).json({ message: "Usuário não encontrado" });
       }
