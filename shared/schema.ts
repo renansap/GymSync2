@@ -74,6 +74,44 @@ export const users: any = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Gyms/Academias table
+export const gyms = pgTable("gyms", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 200 }).notNull(),
+  cnpj: varchar("cnpj", { length: 18 }).unique(),
+  email: varchar("email", { length: 255 }).unique(),
+  phone: varchar("phone", { length: 20 }),
+  
+  // Endereço
+  address: text("address"),
+  city: varchar("city", { length: 100 }),
+  state: varchar("state", { length: 50 }),
+  zipCode: varchar("zip_code", { length: 15 }),
+  
+  // Configurações da academia
+  logo: varchar("logo_url"),
+  website: varchar("website"),
+  socialMedia: jsonb("social_media"), // Instagram, Facebook, etc
+  description: text("description"),
+  
+  // Configurações de planos
+  membershipPlans: jsonb("membership_plans"), // Array of plan objects
+  
+  // Horários de funcionamento
+  openingHours: jsonb("opening_hours"), // Horários por dia da semana
+  
+  // Status e configurações
+  isActive: boolean("is_active").default(true),
+  maxMembers: integer("max_members").default(1000),
+  inviteCode: varchar("invite_code", { length: 50 }).unique(), // Código para convites
+  
+  // Admin da academia (usuário responsável)
+  adminUserId: varchar("admin_user_id"),
+  
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const exercises = pgTable("exercises", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
@@ -218,6 +256,35 @@ export const insertGymMemberSchema = createInsertSchema(gymMembers).omit({
   createdAt: true,
 });
 
+export const insertGymSchema = createInsertSchema(gyms).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+}).extend({
+  membershipPlans: z.array(z.object({
+    name: z.string(),
+    price: z.number(),
+    duration: z.number(), // in months
+    description: z.string().optional(),
+  })).optional(),
+  socialMedia: z.object({
+    instagram: z.string().optional(),
+    facebook: z.string().optional(),
+    youtube: z.string().optional(),
+  }).optional(),
+  openingHours: z.object({
+    monday: z.object({ open: z.string(), close: z.string() }).optional(),
+    tuesday: z.object({ open: z.string(), close: z.string() }).optional(),
+    wednesday: z.object({ open: z.string(), close: z.string() }).optional(),
+    thursday: z.object({ open: z.string(), close: z.string() }).optional(),
+    friday: z.object({ open: z.string(), close: z.string() }).optional(),
+    saturday: z.object({ open: z.string(), close: z.string() }).optional(),
+    sunday: z.object({ open: z.string(), close: z.string() }).optional(),
+  }).optional(),
+});
+
+export const updateGymSchema = insertGymSchema.partial();
+
 // Types
 export type UpsertUser = typeof users.$inferInsert;
 export type User = typeof users.$inferSelect;
@@ -231,3 +298,6 @@ export type InsertPersonalClient = z.infer<typeof insertPersonalClientSchema>;
 export type PersonalClient = typeof personalClients.$inferSelect;
 export type InsertGymMember = z.infer<typeof insertGymMemberSchema>;
 export type GymMember = typeof gymMembers.$inferSelect;
+export type InsertGym = z.infer<typeof insertGymSchema>;
+export type UpdateGym = z.infer<typeof updateGymSchema>;
+export type Gym = typeof gyms.$inferSelect;

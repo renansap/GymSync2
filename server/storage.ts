@@ -1,5 +1,6 @@
 import {
   users,
+  gyms,
   exercises,
   workouts,
   workoutSessions,
@@ -8,6 +9,9 @@ import {
   emailTemplates,
   type User,
   type UpsertUser,
+  type Gym,
+  type InsertGym,
+  type UpdateGym,
   type Exercise,
   type InsertExercise,
   type Workout,
@@ -73,6 +77,14 @@ export interface IStorage {
   createUser(userData: any): Promise<User>;
   updateUser(userId: string, userData: any): Promise<User | undefined>;
   deleteUser(userId: string): Promise<boolean>;
+  
+  // Gym/Academia admin operations
+  getAllGyms(): Promise<Gym[]>;
+  getGym(gymId: string): Promise<Gym | undefined>;
+  createGym(gymData: InsertGym): Promise<Gym>;
+  updateGym(gymId: string, gymData: UpdateGym): Promise<Gym | undefined>;
+  deleteGym(gymId: string): Promise<boolean>;
+  getGymByInviteCode(inviteCode: string): Promise<Gym | undefined>;
   updateUserType(userId: string, userType: string): Promise<User>;
   setUserPassword(userId: string, hashedPassword: string): Promise<User>;
   setPasswordResetToken(userId: string, token: string, expires: Date): Promise<User>;
@@ -1057,6 +1069,83 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     return result.length > 0;
+  }
+
+  // Gym/Academia admin operations
+  async getAllGyms(): Promise<Gym[]> {
+    if (!db) throw new Error("Database not available");
+    
+    const gymList = await db.select().from(gyms).orderBy(desc(gyms.createdAt));
+    return gymList;
+  }
+
+  async getGym(gymId: string): Promise<Gym | undefined> {
+    if (!db) throw new Error("Database not available");
+    
+    const [gym] = await db.select().from(gyms).where(eq(gyms.id, gymId));
+    return gym || undefined;
+  }
+
+  async createGym(gymData: InsertGym): Promise<Gym> {
+    if (!db) throw new Error("Database not available");
+    
+    // Generate unique invite code
+    const inviteCode = this.generateInviteCode();
+    
+    const gymToInsert = {
+      ...gymData,
+      id: randomUUID(),
+      inviteCode,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const [newGym] = await db.insert(gyms).values(gymToInsert).returning();
+    return newGym;
+  }
+
+  async updateGym(gymId: string, gymData: UpdateGym): Promise<Gym | undefined> {
+    if (!db) throw new Error("Database not available");
+    
+    const updateData = {
+      ...gymData,
+      updatedAt: new Date(),
+    };
+
+    const [updatedGym] = await db
+      .update(gyms)
+      .set(updateData)
+      .where(eq(gyms.id, gymId))
+      .returning();
+    
+    return updatedGym || undefined;
+  }
+
+  async deleteGym(gymId: string): Promise<boolean> {
+    if (!db) throw new Error("Database not available");
+    
+    const result = await db
+      .delete(gyms)
+      .where(eq(gyms.id, gymId))
+      .returning();
+    
+    return result.length > 0;
+  }
+
+  async getGymByInviteCode(inviteCode: string): Promise<Gym | undefined> {
+    if (!db) throw new Error("Database not available");
+    
+    const [gym] = await db.select().from(gyms).where(eq(gyms.inviteCode, inviteCode));
+    return gym || undefined;
+  }
+
+  private generateInviteCode(): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    let result = '';
+    for (let i = 0; i < 8; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
   }
 }
 

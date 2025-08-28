@@ -766,6 +766,96 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Gym/Academia management routes (admin only)
+  app.get("/api/admin/gyms", requireAdminAuth, async (req, res) => {
+    try {
+      const gyms = await storage.getAllGyms();
+      res.json(gyms);
+    } catch (error) {
+      console.error("Error fetching gyms:", error);
+      res.status(500).json({ message: "Failed to fetch gyms" });
+    }
+  });
+
+  app.get("/api/admin/gyms/:id", requireAdminAuth, async (req, res) => {
+    try {
+      const gym = await storage.getGym(req.params.id);
+      if (!gym) {
+        return res.status(404).json({ message: "Academia não encontrada" });
+      }
+      res.json(gym);
+    } catch (error) {
+      console.error("Error fetching gym:", error);
+      res.status(500).json({ message: "Failed to fetch gym" });
+    }
+  });
+
+  app.post("/api/admin/gyms", requireAdminAuth, async (req, res) => {
+    try {
+      const { insertGymSchema } = await import("@shared/schema");
+      const validatedData = insertGymSchema.parse(req.body);
+      
+      const gym = await storage.createGym(validatedData);
+      res.status(201).json(gym);
+    } catch (error) {
+      console.error("Error creating gym:", error);
+      if (error instanceof Error && error.message.includes("validation")) {
+        return res.status(400).json({ message: "Dados inválidos", details: error.message });
+      }
+      res.status(500).json({ message: "Failed to create gym" });
+    }
+  });
+
+  app.put("/api/admin/gyms/:id", requireAdminAuth, async (req, res) => {
+    try {
+      const { updateGymSchema } = await import("@shared/schema");
+      const validatedData = updateGymSchema.parse(req.body);
+      
+      const gym = await storage.updateGym(req.params.id, validatedData);
+      if (!gym) {
+        return res.status(404).json({ message: "Academia não encontrada" });
+      }
+      res.json(gym);
+    } catch (error) {
+      console.error("Error updating gym:", error);
+      if (error instanceof Error && error.message.includes("validation")) {
+        return res.status(400).json({ message: "Dados inválidos", details: error.message });
+      }
+      res.status(500).json({ message: "Failed to update gym" });
+    }
+  });
+
+  app.delete("/api/admin/gyms/:id", requireAdminAuth, async (req, res) => {
+    try {
+      const success = await storage.deleteGym(req.params.id);
+      if (!success) {
+        return res.status(404).json({ message: "Academia não encontrada" });
+      }
+      res.json({ message: "Academia excluída com sucesso" });
+    } catch (error) {
+      console.error("Error deleting gym:", error);
+      res.status(500).json({ message: "Failed to delete gym" });
+    }
+  });
+
+  // Public route to check invite code
+  app.get("/api/gyms/invite/:code", async (req, res) => {
+    try {
+      const gym = await storage.getGymByInviteCode(req.params.code);
+      if (!gym) {
+        return res.status(404).json({ message: "Código de convite inválido" });
+      }
+      res.json({ 
+        gymName: gym.name,
+        gymId: gym.id,
+        isValid: true 
+      });
+    } catch (error) {
+      console.error("Error checking invite code:", error);
+      res.status(500).json({ message: "Failed to check invite code" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import BottomNavigation from "../components/bottom-navigation";
-import { Users, Shield, Database, Settings, Activity, UserCog, Mail, FileText, Cog } from "lucide-react";
+import { Users, Shield, Database, Settings, Activity, UserCog, Mail, FileText, Cog, Building2 } from "lucide-react";
 import { User } from "@shared/schema";
 import { Link } from "wouter";
 
@@ -176,7 +176,7 @@ export default function AdminDashboard() {
         {/* Main Admin Functions */}
         <div className="mb-8">
           <h3 className="text-xl font-semibold mb-4">Principais Funcionalidades</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Link href="/admin/usuarios">
               <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
                 <CardHeader className="pb-3">
@@ -187,9 +187,28 @@ export default function AdminDashboard() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground mb-3">
-                    Gerencie alunos, personal trainers e academias
+                    Gerencie alunos, personal trainers e usuários
                   </p>
                   <Button size="sm" className="w-full" data-testid="button-manage-users">
+                    Acessar
+                  </Button>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Link href="/admin/academias">
+              <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center text-base">
+                    <Building2 className="w-5 h-5 mr-2 text-emerald-600" />
+                    Gestão de Academias
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Cadastre e configure academias do sistema
+                  </p>
+                  <Button size="sm" className="w-full" data-testid="button-manage-gyms">
                     Acessar
                   </Button>
                 </CardContent>

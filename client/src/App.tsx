@@ -20,6 +20,7 @@ import AdminDashboard from "./pages/admin-dashboard";
 import AdminLogin from "./pages/admin-login";
 import AdminTemplates from "./pages/admin-templates";
 import AdminConfiguracoes from "./pages/admin-configuracoes";
+import AdminAcademias from "./pages/admin-academias";
 import MultiLogin from "./pages/multi-login";
 import TestGifs from "./pages/test-gifs";
 
@@ -45,6 +46,7 @@ function Router() {
       {/* Admin routes - accessible without main auth */}
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/usuarios" component={AdminUsuarios} />
+      <Route path="/admin/academias" component={AdminAcademias} />
       <Route path="/admin/templates" component={AdminTemplates} />
       <Route path="/admin/configuracoes" component={AdminConfiguracoes} />
       <Route path="/admin" component={AdminDashboard} />
