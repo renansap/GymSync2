@@ -80,7 +80,7 @@ export function UserForm({ user, onSubmit, onCancel, isSubmitting = false, title
       email: user?.email || "",
       phone: user?.phone || "",
       userType: user?.userType || "aluno",
-      gymId: user?.gymId || "",
+      gymId: user?.gymId || "none",
       address: user?.address || "",
       city: user?.city || "",
       state: user?.state || "",
@@ -119,8 +119,6 @@ export function UserForm({ user, onSubmit, onCancel, isSubmitting = false, title
   };
 
   const onFormSubmit = (data: UserFormData) => {
-    // Debug: log the form data
-    console.log("Form submission data:", { ...data, specializations });
     onSubmit({ ...data, specializations });
   };
 
@@ -203,12 +201,12 @@ export function UserForm({ user, onSubmit, onCancel, isSubmitting = false, title
               
               <div>
                 <Label htmlFor="gymId">Academia</Label>
-                <Select value={watch("gymId") || ""} onValueChange={(value) => setValue("gymId", value)}>
+                <Select value={watch("gymId") || "none"} onValueChange={(value) => setValue("gymId", value === "none" ? undefined : value)}>
                   <SelectTrigger data-testid="select-gym">
                     <SelectValue placeholder="Selecione a academia" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Nenhuma academia</SelectItem>
+                    <SelectItem value="none">Nenhuma academia</SelectItem>
                     {gyms.map((gym) => (
                       <SelectItem key={gym.id} value={gym.id}>
                         {gym.name}
