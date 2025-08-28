@@ -801,22 +801,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error creating gym:", error);
       
       // Handle validation errors
+      if (error instanceof Error && error.name === "ZodError") {
+        const zodError = error as any;
+        const firstError = zodError.errors?.[0];
+        if (firstError?.message?.includes("CNPJ inválido")) {
+          return res.status(400).json({ 
+            message: firstError.message,
+            type: "invalid_cnpj"
+          });
+        }
+        return res.status(400).json({ 
+          message: "Dados inválidos. Verifique os campos e tente novamente.",
+          details: firstError?.message || error.message
+        });
+      }
+      
       if (error instanceof Error && error.message.includes("validation")) {
         return res.status(400).json({ message: "Dados inválidos", details: error.message });
       }
       
-      // Handle duplicate email constraint
+      // Handle duplicate constraints
       if (error && typeof error === 'object' && 'code' in error) {
         const dbError = error as any;
-        if (dbError.code === '23505' && dbError.constraint_name === 'gyms_email_unique') {
-          return res.status(409).json({ 
-            message: "Este email já está sendo usado por outra academia. Por favor, use um email diferente.",
-            type: "duplicate_email"
-          });
-        }
-        
-        // Handle other unique constraints
         if (dbError.code === '23505') {
+          if (dbError.constraint_name === 'gyms_email_unique') {
+            return res.status(409).json({ 
+              message: "Este email já está sendo usado por outra academia. Por favor, use um email diferente.",
+              type: "duplicate_email"
+            });
+          }
+          if (dbError.constraint_name === 'gyms_cnpj_unique') {
+            return res.status(409).json({ 
+              message: "Este CNPJ já está cadastrado em outra academia. Por favor, verifique o número do CNPJ.",
+              type: "duplicate_cnpj"
+            });
+          }
+          // Handle other unique constraints
           return res.status(409).json({ 
             message: "Já existe uma academia com essas informações. Verifique os dados e tente novamente.",
             type: "duplicate_data"
@@ -842,22 +862,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error updating gym:", error);
       
       // Handle validation errors
+      if (error instanceof Error && error.name === "ZodError") {
+        const zodError = error as any;
+        const firstError = zodError.errors?.[0];
+        if (firstError?.message?.includes("CNPJ inválido")) {
+          return res.status(400).json({ 
+            message: firstError.message,
+            type: "invalid_cnpj"
+          });
+        }
+        return res.status(400).json({ 
+          message: "Dados inválidos. Verifique os campos e tente novamente.",
+          details: firstError?.message || error.message
+        });
+      }
+      
       if (error instanceof Error && error.message.includes("validation")) {
         return res.status(400).json({ message: "Dados inválidos", details: error.message });
       }
       
-      // Handle duplicate email constraint
+      // Handle duplicate constraints
       if (error && typeof error === 'object' && 'code' in error) {
         const dbError = error as any;
-        if (dbError.code === '23505' && dbError.constraint_name === 'gyms_email_unique') {
-          return res.status(409).json({ 
-            message: "Este email já está sendo usado por outra academia. Por favor, use um email diferente.",
-            type: "duplicate_email"
-          });
-        }
-        
-        // Handle other unique constraints
         if (dbError.code === '23505') {
+          if (dbError.constraint_name === 'gyms_email_unique') {
+            return res.status(409).json({ 
+              message: "Este email já está sendo usado por outra academia. Por favor, use um email diferente.",
+              type: "duplicate_email"
+            });
+          }
+          if (dbError.constraint_name === 'gyms_cnpj_unique') {
+            return res.status(409).json({ 
+              message: "Este CNPJ já está cadastrado em outra academia. Por favor, verifique o número do CNPJ.",
+              type: "duplicate_cnpj"
+            });
+          }
+          // Handle other unique constraints
           return res.status(409).json({ 
             message: "Já existe uma academia com essas informações. Verifique os dados e tente novamente.",
             type: "duplicate_data"

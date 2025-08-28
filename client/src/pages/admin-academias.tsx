@@ -214,7 +214,22 @@ export default function AdminAcademias() {
                       </div>
                       <div>
                         <Label htmlFor="cnpj">CNPJ</Label>
-                        <Input id="cnpj" name="cnpj" placeholder="00.000.000/0001-00" />
+                        <Input 
+                          id="cnpj" 
+                          name="cnpj" 
+                          placeholder="00.000.000/0001-00"
+                          onChange={(e) => {
+                            // Format CNPJ automatically
+                            let value = e.target.value.replace(/\D/g, '');
+                            if (value.length <= 14) {
+                              value = value.replace(/^(\d{2})(\d)/, '$1.$2');
+                              value = value.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3');
+                              value = value.replace(/\.(\d{3})(\d)/, '.$1/$2');
+                              value = value.replace(/(\d{4})(\d)/, '$1-$2');
+                              e.target.value = value;
+                            }
+                          }}
+                        />
                       </div>
                     </div>
                     
@@ -461,7 +476,22 @@ export default function AdminAcademias() {
                               </div>
                               <div>
                                 <Label htmlFor="edit-cnpj">CNPJ</Label>
-                                <Input id="edit-cnpj" name="cnpj" defaultValue={gym.cnpj || ""} />
+                                <Input 
+                                  id="edit-cnpj" 
+                                  name="cnpj" 
+                                  defaultValue={gym.cnpj || ""}
+                                  onChange={(e) => {
+                                    // Format CNPJ automatically
+                                    let value = e.target.value.replace(/\D/g, '');
+                                    if (value.length <= 14) {
+                                      value = value.replace(/^(\d{2})(\d)/, '$1.$2');
+                                      value = value.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3');
+                                      value = value.replace(/\.(\d{3})(\d)/, '.$1/$2');
+                                      value = value.replace(/(\d{4})(\d)/, '$1-$2');
+                                      e.target.value = value;
+                                    }
+                                  }}
+                                />
                               </div>
                             </div>
                             

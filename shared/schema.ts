@@ -12,6 +12,43 @@ import {
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
+// Função para validar CNPJ
+function validateCNPJ(cnpj: string): boolean {
+  // Remove caracteres não numéricos
+  const cleanCNPJ = cnpj.replace(/[^\d]/g, '');
+  
+  // Verifica se tem 14 dígitos
+  if (cleanCNPJ.length !== 14) return false;
+  
+  // Verifica se todos os dígitos são iguais
+  if (/^(\d)\1{13}$/.test(cleanCNPJ)) return false;
+  
+  // Validação dos dígitos verificadores
+  let sum = 0;
+  let weight = 5;
+  
+  // Primeiro dígito
+  for (let i = 0; i < 12; i++) {
+    sum += parseInt(cleanCNPJ[i]) * weight;
+    weight = weight === 2 ? 9 : weight - 1;
+  }
+  
+  let digit1 = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+  if (parseInt(cleanCNPJ[12]) !== digit1) return false;
+  
+  // Segundo dígito
+  sum = 0;
+  weight = 6;
+  
+  for (let i = 0; i < 13; i++) {
+    sum += parseInt(cleanCNPJ[i]) * weight;
+    weight = weight === 2 ? 9 : weight - 1;
+  }
+  
+  let digit2 = sum % 11 < 2 ? 0 : 11 - (sum % 11);
+  return parseInt(cleanCNPJ[13]) === digit2;
+}
+
 // Session storage table.
 // (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
 export const sessions = pgTable(
@@ -258,9 +295,14 @@ export const insertGymMemberSchema = createInsertSchema(gymMembers).omit({
 
 export const insertGymSchema = createInsertSchema(gyms).omit({
   id: true,
+  inviteCode: true,
   createdAt: true,
   updatedAt: true,
 }).extend({
+  cnpj: z.string().optional().refine(
+    (val) => !val || validateCNPJ(val),
+    { message: "CNPJ inválido. Por favor, insira um CNPJ válido." }
+  ),
   membershipPlans: z.array(z.object({
     name: z.string(),
     price: z.number(),
@@ -283,7 +325,12 @@ export const insertGymSchema = createInsertSchema(gyms).omit({
   }).optional(),
 });
 
-export const updateGymSchema = insertGymSchema.partial();
+export const updateGymSchema = insertGymSchema.partial().extend({
+  cnpj: z.string().optional().refine(
+    (val) => !val || validateCNPJ(val),
+    { message: "CNPJ inválido. Por favor, insira um CNPJ válido." }
+  ),
+});
 
 // Types
 export type UpsertUser = typeof users.$inferInsert;
