@@ -890,7 +890,18 @@ export class DatabaseStorage implements IStorage {
   // Admin operations
   async getAllUsers(): Promise<User[]> {
     if (!db) return [];
-    return await db.select().from(users);
+    const result = await db
+      .select({
+        user: users,
+        gym: gyms,
+      })
+      .from(users)
+      .leftJoin(gyms, eq(users.gymId, gyms.id));
+    
+    return result.map((row: any) => ({
+      ...row.user,
+      gym: row.gym || null,
+    }));
   }
 
   async createUser(userData: any): Promise<User> {

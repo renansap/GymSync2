@@ -21,6 +21,7 @@ export default function AdminUsuarios() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<string>("all");
+  const [filterGym, setFilterGym] = useState<string>("all");
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [newUserType, setNewUserType] = useState<string>("");
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -38,6 +39,12 @@ export default function AdminUsuarios() {
   // Fetch all users
   const { data: users = [], isLoading: isLoadingUsers } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],
+    enabled: adminAuth?.authenticated,
+  });
+
+  // Fetch gyms for filter
+  const { data: gyms = [] } = useQuery<any[]>({
+    queryKey: ["/api/admin/gyms"],
     enabled: adminAuth?.authenticated,
   });
 
@@ -178,7 +185,7 @@ export default function AdminUsuarios() {
     }
   };
 
-  // Filter users based on search and type
+  // Filter users based on search, type and gym
   const filteredUsers = users.filter(user => {
     const matchesSearch = 
       `${user.firstName} ${user.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -187,7 +194,11 @@ export default function AdminUsuarios() {
     
     const matchesType = filterType === "all" || user.userType === filterType;
     
-    return matchesSearch && matchesType;
+    const matchesGym = filterGym === "all" || 
+      (filterGym === "none" && !(user as any).gym) ||
+      ((user as any).gym?.id === filterGym);
+    
+    return matchesSearch && matchesType && matchesGym;
   });
 
   const getUserTypeLabel = (type: string) => {
@@ -355,7 +366,7 @@ export default function AdminUsuarios() {
 
         {/* Search and Filters */}
         <div className="mb-6 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="md:col-span-2">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
@@ -378,6 +389,22 @@ export default function AdminUsuarios() {
                   <SelectItem value="aluno">Alunos</SelectItem>
                   <SelectItem value="personal">Personal Trainers</SelectItem>
                   <SelectItem value="academia">Academia/Admin</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Select value={filterGym} onValueChange={setFilterGym}>
+                <SelectTrigger data-testid="select-filter-gym">
+                  <SelectValue placeholder="Filtrar por academia" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as academias</SelectItem>
+                  <SelectItem value="none">Sem academia</SelectItem>
+                  {gyms.map((gym) => (
+                    <SelectItem key={gym.id} value={gym.id}>
+                      {gym.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -415,6 +442,11 @@ export default function AdminUsuarios() {
                         <p className="text-sm text-muted-foreground" data-testid={`text-user-email-${index}`}>
                           {user.email}
                         </p>
+                        {(user as any).gym && (
+                          <p className="text-xs text-blue-600 font-medium" data-testid={`text-user-gym-${index}`}>
+                            🏢 {(user as any).gym.name}
+                          </p>
+                        )}
                       </div>
                     </div>
                     

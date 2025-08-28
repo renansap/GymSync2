@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { sql, relations } from 'drizzle-orm';
 import {
   boolean,
   index,
@@ -83,7 +83,7 @@ export const users: any = pgTable("users", {
   // Dados profissionais/específicos
   cref: varchar("cref", { length: 20 }), // Registro do personal trainer
   specializations: text("specializations").array(), // Especializações do personal
-  gymId: varchar("gym_id"), // Academia que o usuário pertence
+  gymId: varchar("gym_id").references(() => gyms.id), // Academia que o usuário pertence
   membershipType: varchar("membership_type"), // Tipo de plano (mensal, anual, etc)
   membershipStart: timestamp("membership_start"),
   membershipEnd: timestamp("membership_end"),
@@ -204,7 +204,7 @@ export const personalClients = pgTable("personal_clients", {
 
 export const gymMembers = pgTable("gym_members", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  gymId: varchar("gym_id").notNull().references(() => users.id),
+  gymId: varchar("gym_id").notNull().references(() => gyms.id),
   memberId: varchar("member_id").notNull().references(() => users.id),
   membershipType: varchar("membership_type").notNull(),
   startDate: timestamp("start_date").notNull(),
@@ -348,3 +348,27 @@ export type GymMember = typeof gymMembers.$inferSelect;
 export type InsertGym = z.infer<typeof insertGymSchema>;
 export type UpdateGym = z.infer<typeof updateGymSchema>;
 export type Gym = typeof gyms.$inferSelect;
+
+// Relations
+export const usersRelations = relations(users, ({ one }) => ({
+  gym: one(gyms, {
+    fields: [users.gymId],
+    references: [gyms.id],
+  }),
+}));
+
+export const gymsRelations = relations(gyms, ({ many }) => ({
+  users: many(users),
+  members: many(gymMembers),
+}));
+
+export const gymMembersRelations = relations(gymMembers, ({ one }) => ({
+  gym: one(gyms, {
+    fields: [gymMembers.gymId],
+    references: [gyms.id],
+  }),
+  member: one(users, {
+    fields: [gymMembers.memberId],
+    references: [users.id],
+  }),
+}));

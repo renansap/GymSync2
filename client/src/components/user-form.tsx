@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -20,6 +21,7 @@ const userFormSchema = z.object({
   email: z.string().email("Email inválido"),
   phone: z.string().optional(),
   userType: z.enum(["aluno", "personal", "academia"]),
+  gymId: z.string().optional(),
   
   // Endereço
   address: z.string().optional(),
@@ -65,6 +67,11 @@ export function UserForm({ user, onSubmit, onCancel, isSubmitting = false, title
   const [specializationInput, setSpecializationInput] = useState("");
   const [specializations, setSpecializations] = useState<string[]>(user?.specializations || []);
   
+  // Fetch academies for selection
+  const { data: gyms = [] } = useQuery<any[]>({
+    queryKey: ["/api/admin/gyms"],
+  });
+  
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<UserFormData>({
     resolver: zodResolver(userFormSchema),
     defaultValues: {
@@ -73,6 +80,7 @@ export function UserForm({ user, onSubmit, onCancel, isSubmitting = false, title
       email: user?.email || "",
       phone: user?.phone || "",
       userType: user?.userType || "aluno",
+      gymId: user?.gymId || "",
       address: user?.address || "",
       city: user?.city || "",
       state: user?.state || "",
@@ -191,6 +199,25 @@ export function UserForm({ user, onSubmit, onCancel, isSubmitting = false, title
                 </Select>
               </div>
               
+              <div>
+                <Label htmlFor="gymId">Academia</Label>
+                <Select value={watch("gymId") || ""} onValueChange={(value) => setValue("gymId", value)}>
+                  <SelectTrigger data-testid="select-gym">
+                    <SelectValue placeholder="Selecione a academia" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Nenhuma academia</SelectItem>
+                    {gyms.map((gym) => (
+                      <SelectItem key={gym.id} value={gym.id}>
+                        {gym.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="birthDate">Data de Nascimento</Label>
                 <Input
