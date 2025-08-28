@@ -393,7 +393,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.patch('/api/admin/users/:userId', requireAdminAuth, async (req: any, res) => {
     try {
       const { userId } = req.params;
-      const userData = req.body;
+      const { updateUserSchema } = await import("@shared/schema");
+      const userData = updateUserSchema.parse(req.body);
       
       // Validate user type if provided
       if (userData.userType && !['aluno', 'personal', 'academia'].includes(userData.userType)) {
