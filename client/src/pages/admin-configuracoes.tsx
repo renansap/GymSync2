@@ -69,14 +69,7 @@ export default function AdminConfiguracoes() {
       badge: "Em breve",
       color: "bg-gray-100 text-gray-600"
     },
-    {
-      title: "Relatórios",
-      description: "Gere relatórios detalhados de uso e performance",
-      icon: FileText,
-      link: "/admin/reports",
-      badge: "Em breve",
-      color: "bg-gray-100 text-gray-600"
-    },
+    
     {
       title: "Segurança",
       description: "Configure políticas de segurança e auditoria",
