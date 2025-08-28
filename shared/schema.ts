@@ -35,6 +35,33 @@ export const users = pgTable("users", {
   profileImageUrl: varchar("profile_image_url"),
   userType: varchar("user_type").notNull().default("aluno"), // aluno, personal, academia
   birthDate: timestamp("birth_date"), // For birthday tracking
+  
+  // Dados de contato
+  phone: varchar("phone", { length: 20 }),
+  address: text("address"),
+  city: varchar("city", { length: 100 }),
+  state: varchar("state", { length: 50 }),
+  zipCode: varchar("zip_code", { length: 15 }),
+  
+  // Dados profissionais/específicos
+  cref: varchar("cref", { length: 20 }), // Registro do personal trainer
+  specializations: text("specializations").array(), // Especializações do personal
+  gymId: varchar("gym_id").references(() => users.id), // Academia que o usuário pertence
+  membershipType: varchar("membership_type"), // Tipo de plano (mensal, anual, etc)
+  membershipStart: timestamp("membership_start"),
+  membershipEnd: timestamp("membership_end"),
+  
+  // Dados físicos e objetivos
+  height: integer("height"), // altura em cm
+  weight: integer("weight"), // peso em kg
+  fitnessGoal: varchar("fitness_goal"), // objetivo: emagrecimento, hipertrofia, resistência
+  fitnessLevel: varchar("fitness_level"), // nível: iniciante, intermediário, avançado
+  medicalRestrictions: text("medical_restrictions"), // restrições médicas
+  
+  // Status e configurações
+  isActive: boolean("is_active").default(true),
+  notes: text("notes"), // observações gerais
+  
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -96,7 +123,16 @@ export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  birthDate: z.string().optional().transform((val) => val ? new Date(val) : undefined),
+  membershipStart: z.string().optional().transform((val) => val ? new Date(val) : undefined),
+  membershipEnd: z.string().optional().transform((val) => val ? new Date(val) : undefined),
+  height: z.number().min(50).max(250).optional(),
+  weight: z.number().min(20).max(300).optional(),
+  specializations: z.array(z.string()).optional(),
 });
+
+export const updateUserSchema = insertUserSchema.partial();
 
 export const insertExerciseSchema = createInsertSchema(exercises).omit({
   id: true,

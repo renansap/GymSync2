@@ -66,6 +66,9 @@ export interface IStorage {
   
   // Admin operations
   getAllUsers(): Promise<User[]>;
+  createUser(userData: any): Promise<User>;
+  updateUser(userId: string, userData: any): Promise<User | undefined>;
+  deleteUser(userId: string): Promise<boolean>;
   updateUserType(userId: string, userType: string): Promise<User>;
 }
 
@@ -416,20 +419,59 @@ export class MemStorage implements IStorage {
     return Array.from(this.users.values());
   }
 
-  async createUser(userData: { name: string; email: string; userType: string }): Promise<User> {
+  async createUser(userData: any): Promise<User> {
     const user: User = {
       id: randomUUID(),
-      email: userData.email,
-      firstName: userData.name.split(' ')[0] || null,
-      lastName: userData.name.split(' ').slice(1).join(' ') || null,
-      profileImageUrl: null,
-      userType: userData.userType,
-      birthDate: null,
+      email: userData.email ?? null,
+      firstName: userData.firstName ?? null,
+      lastName: userData.lastName ?? null,
+      name: userData.name ?? `${userData.firstName || ''} ${userData.lastName || ''}`.trim(),
+      profileImageUrl: userData.profileImageUrl ?? null,
+      userType: userData.userType ?? "aluno",
+      birthDate: userData.birthDate ?? null,
+      phone: userData.phone ?? null,
+      address: userData.address ?? null,
+      city: userData.city ?? null,
+      state: userData.state ?? null,
+      zipCode: userData.zipCode ?? null,
+      cref: userData.cref ?? null,
+      specializations: userData.specializations ?? null,
+      gymId: userData.gymId ?? null,
+      membershipType: userData.membershipType ?? null,
+      membershipStart: userData.membershipStart ?? null,
+      membershipEnd: userData.membershipEnd ?? null,
+      height: userData.height ?? null,
+      weight: userData.weight ?? null,
+      fitnessGoal: userData.fitnessGoal ?? null,
+      fitnessLevel: userData.fitnessLevel ?? null,
+      medicalRestrictions: userData.medicalRestrictions ?? null,
+      isActive: userData.isActive ?? true,
+      notes: userData.notes ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
     this.users.set(user.id, user);
     return user;
+  }
+
+  async updateUser(userId: string, userData: any): Promise<User | undefined> {
+    const user = this.users.get(userId);
+    if (!user) {
+      return undefined;
+    }
+
+    const updatedUser: User = {
+      ...user,
+      ...userData,
+      updatedAt: new Date(),
+    };
+
+    this.users.set(userId, updatedUser);
+    return updatedUser;
+  }
+
+  async deleteUser(userId: string): Promise<boolean> {
+    return this.users.delete(userId);
   }
 
   async updateUserType(userId: string, userType: string): Promise<User> {
@@ -718,23 +760,46 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(users);
   }
 
-  async createUser(userData: { name: string; email: string; userType: string }): Promise<User> {
+  async createUser(userData: any): Promise<User> {
     if (!db) throw new Error("Database not available");
     
     const userToInsert = {
+      ...userData,
       id: randomUUID(),
-      email: userData.email,
-      firstName: userData.name.split(' ')[0] || null,
-      lastName: userData.name.split(' ').slice(1).join(' ') || null,
-      profileImageUrl: null,
-      userType: userData.userType,
-      birthDate: null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
 
     const [newUser] = await db.insert(users).values(userToInsert).returning();
     return newUser;
+  }
+
+  async updateUser(userId: string, userData: any): Promise<User | undefined> {
+    if (!db) throw new Error("Database not available");
+    
+    const updateData = {
+      ...userData,
+      updatedAt: new Date(),
+    };
+
+    const [updatedUser] = await db
+      .update(users)
+      .set(updateData)
+      .where(eq(users.id, userId))
+      .returning();
+    
+    return updatedUser || undefined;
+  }
+
+  async deleteUser(userId: string): Promise<boolean> {
+    if (!db) throw new Error("Database not available");
+    
+    const result = await db
+      .delete(users)
+      .where(eq(users.id, userId))
+      .returning();
+    
+    return result.length > 0;
   }
 
   async updateUserType(userId: string, userType: string): Promise<User> {

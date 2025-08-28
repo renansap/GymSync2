@@ -314,24 +314,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create new user (admin only)
   app.post('/api/admin/users', requireAdminAuth, async (req: any, res) => {
     try {
-      const { name, email, userType } = req.body;
+      const userData = req.body;
       
-      if (!name || !email || !userType) {
-        return res.status(400).json({ message: "Missing required fields: name, email, userType" });
+      // Validate required fields
+      if (!userData.firstName || !userData.lastName || !userData.email || !userData.userType) {
+        return res.status(400).json({ message: "Missing required fields: firstName, lastName, email, userType" });
       }
       
-      if (!['aluno', 'personal', 'academia'].includes(userType)) {
+      if (!['aluno', 'personal', 'academia'].includes(userData.userType)) {
         return res.status(400).json({ message: "Invalid user type" });
       }
       
-      const user = await storage.createUser({ name, email, userType });
-      res.json(user);
+      const user = await storage.createUser(userData);
+      res.status(201).json(user);
     } catch (error) {
       console.error("Error creating user:", error);
-      res.status(500).json({ message: "Failed to create user" });
+      if (error.message?.includes('duplicate key')) {
+        res.status(409).json({ message: "Email already exists" });
+      } else {
+        res.status(500).json({ message: "Failed to create user" });
+      }
     }
   });
 
+  // Get single user (admin only)
+  app.get('/api/admin/users/:userId', requireAdminAuth, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      res.json(user);
+    } catch (error) {
+      console.error("Error fetching user:", error);
+      res.status(500).json({ message: "Failed to fetch user" });
+    }
+  });
+
+  // Update user (admin only)
+  app.patch('/api/admin/users/:userId', requireAdminAuth, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const userData = req.body;
+      
+      // Validate user type if provided
+      if (userData.userType && !['aluno', 'personal', 'academia'].includes(userData.userType)) {
+        return res.status(400).json({ message: "Invalid user type" });
+      }
+      
+      const user = await storage.updateUser(userId, userData);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      res.json(user);
+    } catch (error) {
+      console.error("Error updating user:", error);
+      if (error.message?.includes('duplicate key')) {
+        res.status(409).json({ message: "Email already exists" });
+      } else {
+        res.status(500).json({ message: "Failed to update user" });
+      }
+    }
+  });
+
+  // Delete user (admin only)
+  app.delete('/api/admin/users/:userId', requireAdminAuth, async (req: any, res) => {
+    try {
+      const { userId } = req.params;
+      const success = await storage.deleteUser(userId);
+      
+      if (!success) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      res.status(500).json({ message: "Failed to delete user" });
+    }
+  });
+
+  // Quick update user type (admin only)
   app.patch('/api/admin/users/:userId/type', requireAdminAuth, async (req: any, res) => {
     try {
       const { userId } = req.params;
