@@ -1,0 +1,47 @@
+{
+  "users": [
+    {
+      "id": "ccba2675-95f2-4bfa-a0ca-df3f2b38ce80",
+      "email": "joao@teste.com",
+      "firstName": "João",
+      "lastName": "Silva",
+      "name": null,
+      "profileImageUrl": null,
+      "userType": "aluno",
+      "birthDate": null,
+      "createdAt": "2025-08-28T13:01:52.226Z",
+      "updatedAt": "2025-08-28T13:01:52.226Z"
+    },
+    {
+      "id": "d14c6d80-3291-4a44-b2ea-5c32bc003e1a",
+      "email": "maria@teste.com",
+      "firstName": "Maria",
+      "lastName": "Santos",
+      "name": null,
+      "profileImageUrl": null,
+      "userType": "personal",
+      "birthDate": null,
+      "createdAt": "2025-08-28T13:01:53.024Z",
+      "updatedAt": "2025-08-28T13:01:53.024Z"
+    },
+    {
+      "id": "8aa84ed7-fa6d-415f-815f-75601e62bf32",
+      "email": "contato@fitnessplus.com",
+      "firstName": "Fitness",
+      "lastName": "Plus",
+      "name": null,
+      "profileImageUrl": null,
+      "userType": "academia",
+      "birthDate": null,
+      "createdAt": "2025-08-28T13:01:53.223Z",
+      "updatedAt": "2025-08-28T13:01:53.223Z"
+    }
+  ],
+  "schema": {
+    "tables": [
+      "users", "exercises", "workouts", "workout_sessions", 
+      "personal_clients", "gym_members", "sessions"
+    ],
+    "migration_date": "2025-08-28T13:03:00.000Z"
+  }
+}

@@ -9,12 +9,27 @@ export let isDbConnected = false;
 async function initializeDatabase() {
   try {
     if (process.env.DATABASE_URL) {
-      // Use Replit's internal PostgreSQL instead of Supabase due to IPv6 issues
-      const sql = postgres(process.env.DATABASE_URL, { 
-        max: 1, // Limit connections for serverless
-        connect_timeout: 10,
-        idle_timeout: 10,
-      });
+      let connectionConfig;
+      
+      // Check if it's a Supabase connection string
+      if (process.env.DATABASE_URL.includes('supabase.co')) {
+        console.log("🔗 Connecting to Supabase with SSL configuration...");
+        connectionConfig = {
+          ssl: 'require',
+          max: 1, // Limit connections for serverless
+          connect_timeout: 10,
+          idle_timeout: 10,
+        };
+      } else {
+        console.log("🔗 Connecting to Replit PostgreSQL...");
+        connectionConfig = {
+          max: 1, // Limit connections for serverless  
+          connect_timeout: 10,
+          idle_timeout: 10,
+        };
+      }
+      
+      const sql = postgres(process.env.DATABASE_URL, connectionConfig);
       db = drizzle(sql, { schema });
       
       // Test the connection
