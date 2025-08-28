@@ -215,24 +215,7 @@ export default function AdminDashboard() {
               </Card>
             </Link>
 
-            <Link href="/admin/templates">
-              <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-                <CardHeader className="pb-3">
-                  <CardTitle className="flex items-center text-base">
-                    <Mail className="w-5 h-5 mr-2 text-green-600" />
-                    Templates de Email
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-sm text-muted-foreground mb-3">
-                    Gerencie emails para diferentes tipos de usuário
-                  </p>
-                  <Button size="sm" className="w-full" data-testid="button-email-templates">
-                    Acessar
-                  </Button>
-                </CardContent>
-              </Card>
-            </Link>
+            
 
             <Card className="hover:shadow-md transition-shadow h-full">
               <CardHeader className="pb-3">
