@@ -66,6 +66,10 @@ export default function AdminAcademias() {
   const createGymMutation = useMutation({
     mutationFn: async (gymData: InsertGym) => {
       const response = await apiRequest("POST", "/api/admin/gyms", gymData);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Erro ao criar academia");
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -89,6 +93,10 @@ export default function AdminAcademias() {
   const updateGymMutation = useMutation({
     mutationFn: async ({ gymId, gymData }: { gymId: string; gymData: Partial<InsertGym> }) => {
       const response = await apiRequest("PUT", `/api/admin/gyms/${gymId}`, gymData);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Erro ao atualizar academia");
+      }
       return response.json();
     },
     onSuccess: () => {

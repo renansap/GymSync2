@@ -799,10 +799,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(gym);
     } catch (error) {
       console.error("Error creating gym:", error);
+      
+      // Handle validation errors
       if (error instanceof Error && error.message.includes("validation")) {
         return res.status(400).json({ message: "Dados inválidos", details: error.message });
       }
-      res.status(500).json({ message: "Failed to create gym" });
+      
+      // Handle duplicate email constraint
+      if (error && typeof error === 'object' && 'code' in error) {
+        const dbError = error as any;
+        if (dbError.code === '23505' && dbError.constraint_name === 'gyms_email_unique') {
+          return res.status(409).json({ 
+            message: "Este email já está sendo usado por outra academia. Por favor, use um email diferente.",
+            type: "duplicate_email"
+          });
+        }
+        
+        // Handle other unique constraints
+        if (dbError.code === '23505') {
+          return res.status(409).json({ 
+            message: "Já existe uma academia com essas informações. Verifique os dados e tente novamente.",
+            type: "duplicate_data"
+          });
+        }
+      }
+      
+      res.status(500).json({ message: "Erro interno do servidor. Tente novamente." });
     }
   });
 
@@ -818,10 +840,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(gym);
     } catch (error) {
       console.error("Error updating gym:", error);
+      
+      // Handle validation errors
       if (error instanceof Error && error.message.includes("validation")) {
         return res.status(400).json({ message: "Dados inválidos", details: error.message });
       }
-      res.status(500).json({ message: "Failed to update gym" });
+      
+      // Handle duplicate email constraint
+      if (error && typeof error === 'object' && 'code' in error) {
+        const dbError = error as any;
+        if (dbError.code === '23505' && dbError.constraint_name === 'gyms_email_unique') {
+          return res.status(409).json({ 
+            message: "Este email já está sendo usado por outra academia. Por favor, use um email diferente.",
+            type: "duplicate_email"
+          });
+        }
+        
+        // Handle other unique constraints
+        if (dbError.code === '23505') {
+          return res.status(409).json({ 
+            message: "Já existe uma academia com essas informações. Verifique os dados e tente novamente.",
+            type: "duplicate_data"
+          });
+        }
+      }
+      
+      res.status(500).json({ message: "Erro interno do servidor. Tente novamente." });
     }
   });
 
