@@ -3,7 +3,9 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { setupAuth, isAuthenticated } from "./replitAuth";
 import { generateWorkout } from "./aiService";
-import { insertWorkoutSchema, insertWorkoutSessionSchema } from "@shared/schema";
+import { emailService } from "./emailService";
+import { insertWorkoutSchema, insertWorkoutSessionSchema, loginSchema, passwordResetSchema, insertEmailTemplateSchema } from "@shared/schema";
+import bcrypt from 'bcrypt';
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth middleware
@@ -325,12 +327,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Invalid user type" });
       }
       
+      // Check if email already exists
+      const existingUser = await storage.getUserByEmail(userData.email);
+      if (existingUser) {
+        return res.status(409).json({ message: "Email já está em uso" });
+      }
+      
+      // Create user without password
       const user = await storage.createUser(userData);
+      
+      // Generate welcome email token
+      const welcomeToken = emailService.generatePasswordResetToken();
+      const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      
+      await storage.setPasswordResetToken(user.id, welcomeToken, expires);
+      
+      // Get welcome email template
+      const template = await storage.getEmailTemplateByType(userData.userType, 'welcome');
+      if (template) {
+        const userName = `${userData.firstName} ${userData.lastName}`.trim();
+        const emailSent = await emailService.sendWelcomeEmail(
+          userData.email,
+          userName,
+          userData.userType,
+          welcomeToken,
+          template
+        );
+        
+        if (!emailSent) {
+          console.warn(`Failed to send welcome email to ${userData.email}`);
+        }
+      } else {
+        console.warn(`No welcome template found for user type: ${userData.userType}`);
+      }
+      
       res.status(201).json(user);
     } catch (error) {
       console.error("Error creating user:", error);
       if (error.message?.includes('duplicate key')) {
-        res.status(409).json({ message: "Email already exists" });
+        res.status(409).json({ message: "Email já está em uso" });
       } else {
         res.status(500).json({ message: "Failed to create user" });
       }
@@ -414,6 +449,320 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating user type:", error);
       res.status(500).json({ message: "Failed to update user type" });
+    }
+  });
+
+  // Authentication routes
+  app.post('/api/auth/login', async (req, res) => {
+    try {
+      const { email, password } = loginSchema.parse(req.body);
+      
+      const user = await storage.getUserByEmail(email);
+      if (!user || !user.password) {
+        return res.status(401).json({ message: "Email ou senha inválidos" });
+      }
+      
+      const isValidPassword = await bcrypt.compare(password, user.password);
+      if (!isValidPassword) {
+        return res.status(401).json({ message: "Email ou senha inválidos" });
+      }
+      
+      // Update last login
+      await storage.updateUser(user.id, { lastLogin: new Date() });
+      
+      // Set session
+      req.session.userId = user.id;
+      req.session.userEmail = user.email;
+      
+      res.json({ 
+        user: { 
+          id: user.id, 
+          email: user.email, 
+          firstName: user.firstName, 
+          lastName: user.lastName, 
+          userType: user.userType 
+        } 
+      });
+    } catch (error) {
+      console.error("Login error:", error);
+      res.status(400).json({ message: "Dados inválidos" });
+    }
+  });
+
+  app.post('/api/auth/logout', (req, res) => {
+    req.session.destroy(() => {
+      res.json({ success: true });
+    });
+  });
+
+  app.get('/api/auth/me', async (req, res) => {
+    if (!req.session?.userId) {
+      return res.status(401).json({ message: "Não autenticado" });
+    }
+    
+    try {
+      const user = await storage.getUser(req.session.userId);
+      if (!user) {
+        return res.status(401).json({ message: "Usuário não encontrado" });
+      }
+      
+      res.json({ 
+        user: { 
+          id: user.id, 
+          email: user.email, 
+          firstName: user.firstName, 
+          lastName: user.lastName, 
+          userType: user.userType 
+        } 
+      });
+    } catch (error) {
+      console.error("Auth check error:", error);
+      res.status(500).json({ message: "Erro interno" });
+    }
+  });
+
+  // Password setup/reset routes
+  app.post('/api/auth/definir-senha', async (req, res) => {
+    try {
+      const { token, password, confirmPassword } = passwordResetSchema.parse(req.body);
+      
+      const user = await storage.getUserByResetToken(token);
+      if (!user) {
+        return res.status(400).json({ message: "Token inválido ou expirado" });
+      }
+      
+      // Check if token is still valid
+      if (!user.passwordResetExpires || user.passwordResetExpires < new Date()) {
+        return res.status(400).json({ message: "Token expirado" });
+      }
+      
+      const hashedPassword = await bcrypt.hash(password, 12);
+      await storage.setUserPassword(user.id, hashedPassword);
+      await storage.clearPasswordResetToken(user.id);
+      
+      res.json({ success: true, message: "Senha definida com sucesso" });
+    } catch (error) {
+      console.error("Password setup error:", error);
+      res.status(400).json({ message: "Erro ao definir senha" });
+    }
+  });
+
+  app.post('/api/auth/solicitar-reset', async (req, res) => {
+    try {
+      const { email } = req.body;
+      
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        // Don't reveal if email exists
+        return res.json({ success: true, message: "Se o email existir, você receberá instruções" });
+      }
+      
+      const resetToken = emailService.generatePasswordResetToken();
+      const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+      
+      await storage.setPasswordResetToken(user.id, resetToken, expires);
+      
+      const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
+      await emailService.sendPasswordResetEmail(user.email!, userName, resetToken);
+      
+      res.json({ success: true, message: "Se o email existir, você receberá instruções" });
+    } catch (error) {
+      console.error("Password reset request error:", error);
+      res.status(500).json({ message: "Erro interno" });
+    }
+  });
+
+  // Email template management routes (admin only)
+  app.get('/api/admin/email-templates', requireAdminAuth, async (req: any, res) => {
+    try {
+      const templates = await storage.getEmailTemplates();
+      res.json(templates);
+    } catch (error) {
+      console.error("Error fetching email templates:", error);
+      res.status(500).json({ message: "Failed to fetch email templates" });
+    }
+  });
+
+  app.post('/api/admin/email-templates', requireAdminAuth, async (req: any, res) => {
+    try {
+      const templateData = insertEmailTemplateSchema.parse(req.body);
+      
+      // Validate user type
+      if (!['aluno', 'personal', 'academia'].includes(templateData.userType)) {
+        return res.status(400).json({ message: "Invalid user type" });
+      }
+      
+      const template = await storage.createEmailTemplate(templateData);
+      res.status(201).json(template);
+    } catch (error) {
+      console.error("Error creating email template:", error);
+      res.status(400).json({ message: "Failed to create email template" });
+    }
+  });
+
+  app.patch('/api/admin/email-templates/:templateId', requireAdminAuth, async (req: any, res) => {
+    try {
+      const { templateId } = req.params;
+      const templateData = req.body;
+      
+      // Validate user type if provided
+      if (templateData.userType && !['aluno', 'personal', 'academia'].includes(templateData.userType)) {
+        return res.status(400).json({ message: "Invalid user type" });
+      }
+      
+      const template = await storage.updateEmailTemplate(templateId, templateData);
+      
+      if (!template) {
+        return res.status(404).json({ message: "Email template not found" });
+      }
+      
+      res.json(template);
+    } catch (error) {
+      console.error("Error updating email template:", error);
+      res.status(500).json({ message: "Failed to update email template" });
+    }
+  });
+
+  app.delete('/api/admin/email-templates/:templateId', requireAdminAuth, async (req: any, res) => {
+    try {
+      const { templateId } = req.params;
+      const success = await storage.deleteEmailTemplate(templateId);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Email template not found" });
+      }
+      
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting email template:", error);
+      res.status(500).json({ message: "Failed to delete email template" });
+    }
+  });
+
+  // Test email sending (admin only)
+  app.post('/api/admin/test-email', requireAdminAuth, async (req: any, res) => {
+    try {
+      const { email, userType, templateType } = req.body;
+      
+      if (!email || !userType || !templateType) {
+        return res.status(400).json({ message: "Missing required fields: email, userType, templateType" });
+      }
+      
+      const template = await storage.getEmailTemplateByType(userType, templateType);
+      if (!template) {
+        return res.status(404).json({ message: "Template not found" });
+      }
+      
+      if (templateType === 'welcome') {
+        const testToken = emailService.generatePasswordResetToken();
+        const emailSent = await emailService.sendWelcomeEmail(
+          email,
+          'Usuário Teste',
+          userType,
+          testToken,
+          template
+        );
+        
+        res.json({ success: emailSent, message: emailSent ? "Email de teste enviado" : "Falha ao enviar email" });
+      } else {
+        res.status(400).json({ message: "Template type not supported for testing" });
+      }
+    } catch (error) {
+      console.error("Error sending test email:", error);
+      res.status(500).json({ message: "Failed to send test email" });
+    }
+  });
+
+  // Seed default email templates
+  app.post('/api/admin/seed-templates', requireAdminAuth, async (req: any, res) => {
+    try {
+      const defaultTemplates = [
+        {
+          userType: 'aluno',
+          templateType: 'welcome',
+          subject: 'Bem-vindo ao GymSync! 🏋️‍♀️',
+          content: `
+            <h2>Bem-vindo ao GymSync, {{nome}}!</h2>
+            <p>Estamos muito felizes em tê-lo conosco!</p>
+            <p>Como aluno, você terá acesso a:</p>
+            <ul>
+              <li>📊 Acompanhamento de treinos personalizados</li>
+              <li>🤖 Geração de treinos com IA</li>
+              <li>📈 Relatórios de progresso</li>
+              <li>💪 Histórico completo de exercícios</li>
+            </ul>
+            <p>Para começar, defina sua senha clicando no botão abaixo:</p>
+            <p><a href="{{link_senha}}" class="button">Definir Minha Senha</a></p>
+            <p>Seu email de acesso é: <strong>{{email}}</strong></p>
+            <p>Vamos alcançar seus objetivos juntos!</p>
+          `,
+          isActive: true
+        },
+        {
+          userType: 'personal',
+          templateType: 'welcome',
+          subject: 'Bem-vindo ao GymSync - Personal Trainer! 💪',
+          content: `
+            <h2>Bem-vindo ao GymSync, {{nome}}!</h2>
+            <p>É um prazer ter você em nossa plataforma como Personal Trainer!</p>
+            <p>Como personal, você poderá:</p>
+            <ul>
+              <li>👥 Gerenciar seus clientes</li>
+              <li>🏋️ Criar treinos personalizados</li>
+              <li>📊 Acompanhar o progresso dos alunos</li>
+              <li>🤖 Usar IA para otimizar treinos</li>
+              <li>📈 Gerar relatórios detalhados</li>
+            </ul>
+            <p>Para começar, defina sua senha clicando no botão abaixo:</p>
+            <p><a href="{{link_senha}}" class="button">Definir Minha Senha</a></p>
+            <p>Seu email de acesso é: <strong>{{email}}</strong></p>
+            <p>Vamos transformar vidas juntos!</p>
+          `,
+          isActive: true
+        },
+        {
+          userType: 'academia',
+          templateType: 'welcome',
+          subject: 'Bem-vindo ao GymSync - Academia! 🏢',
+          content: `
+            <h2>Bem-vindo ao GymSync, {{nome}}!</h2>
+            <p>Sua academia agora faz parte da revolução fitness digital!</p>
+            <p>Como administrador, você terá acesso a:</p>
+            <ul>
+              <li>🏢 Painel completo de gestão da academia</li>
+              <li>👥 Gerenciamento de alunos e personal trainers</li>
+              <li>📊 Relatórios de engajamento e performance</li>
+              <li>🎂 Acompanhamento de aniversariantes</li>
+              <li>📧 Sistema de comunicação integrado</li>
+              <li>🔧 Ferramentas administrativas avançadas</li>
+            </ul>
+            <p>Para começar, defina sua senha clicando no botão abaixo:</p>
+            <p><a href="{{link_senha}}" class="button">Definir Minha Senha</a></p>
+            <p>Seu email de acesso é: <strong>{{email}}</strong></p>
+            <p>Pronto para revolucionar sua academia?</p>
+          `,
+          isActive: true
+        }
+      ];
+
+      const createdTemplates = [];
+      for (const templateData of defaultTemplates) {
+        // Check if template already exists
+        const existing = await storage.getEmailTemplateByType(templateData.userType, templateData.templateType);
+        if (!existing) {
+          const template = await storage.createEmailTemplate(templateData);
+          createdTemplates.push(template);
+        }
+      }
+
+      res.json({ 
+        success: true, 
+        message: `${createdTemplates.length} templates criados`,
+        templates: createdTemplates
+      });
+    } catch (error) {
+      console.error("Error seeding email templates:", error);
+      res.status(500).json({ message: "Failed to seed email templates" });
     }
   });
 

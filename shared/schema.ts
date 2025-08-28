@@ -26,7 +26,7 @@ export const sessions = pgTable(
 
 // User storage table.
 // (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
-export const users = pgTable("users", {
+export const users: any = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").unique(),
   firstName: varchar("first_name"),
@@ -46,7 +46,7 @@ export const users = pgTable("users", {
   // Dados profissionais/específicos
   cref: varchar("cref", { length: 20 }), // Registro do personal trainer
   specializations: text("specializations").array(), // Especializações do personal
-  gymId: varchar("gym_id").references(() => users.id), // Academia que o usuário pertence
+  gymId: varchar("gym_id"), // Academia que o usuário pertence
   membershipType: varchar("membership_type"), // Tipo de plano (mensal, anual, etc)
   membershipStart: timestamp("membership_start"),
   membershipEnd: timestamp("membership_end"),
@@ -61,6 +61,14 @@ export const users = pgTable("users", {
   // Status e configurações
   isActive: boolean("is_active").default(true),
   notes: text("notes"), // observações gerais
+  
+  // Autenticação
+  password: varchar("password", { length: 255 }), // hash da senha
+  passwordResetToken: varchar("password_reset_token", { length: 255 }),
+  passwordResetExpires: timestamp("password_reset_expires"),
+  emailVerified: boolean("email_verified").default(false),
+  emailVerificationToken: varchar("email_verification_token", { length: 255 }),
+  lastLogin: timestamp("last_login"),
   
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
@@ -100,6 +108,18 @@ export const workoutSessions = pgTable("workout_sessions", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Email templates table
+export const emailTemplates = pgTable("email_templates", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userType: varchar("user_type").notNull(), // aluno, personal, academia
+  templateType: varchar("template_type").notNull(), // welcome, password_reset, etc
+  subject: text("subject").notNull(),
+  content: text("content").notNull(),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const personalClients = pgTable("personal_clients", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   personalId: varchar("personal_id").notNull().references(() => users.id),
@@ -123,6 +143,11 @@ export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+  password: true, // Será definida após o email de boas-vindas
+  passwordResetToken: true,
+  passwordResetExpires: true,
+  emailVerificationToken: true,
+  lastLogin: true,
 }).extend({
   birthDate: z.string().optional().transform((val) => val ? new Date(val) : undefined),
   membershipStart: z.string().optional().transform((val) => val ? new Date(val) : undefined),
@@ -130,9 +155,43 @@ export const insertUserSchema = createInsertSchema(users).omit({
   height: z.number().min(50).max(250).optional(),
   weight: z.number().min(20).max(300).optional(),
   specializations: z.array(z.string()).optional(),
+  email: z.string().email("Email inválido"),
 });
 
+// Login schema
+export const loginSchema = z.object({
+  email: z.string().email("Email inválido"),
+  password: z.string().min(1, "Senha é obrigatória"),
+});
+
+export type LoginData = z.infer<typeof loginSchema>;
+
 export const updateUserSchema = insertUserSchema.partial();
+
+export const insertEmailTemplateSchema = createInsertSchema(emailTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const updateEmailTemplateSchema = insertEmailTemplateSchema.partial();
+
+// Types
+export type EmailTemplate = typeof emailTemplates.$inferSelect;
+export type InsertEmailTemplate = z.infer<typeof insertEmailTemplateSchema>;
+export type UpdateEmailTemplate = z.infer<typeof updateEmailTemplateSchema>;
+
+// Password reset schema
+export const passwordResetSchema = z.object({
+  token: z.string().min(1, "Token é obrigatório"),
+  password: z.string().min(6, "Senha deve ter pelo menos 6 caracteres"),
+  confirmPassword: z.string().min(6, "Confirmação de senha é obrigatória"),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Senhas não coincidem",
+  path: ["confirmPassword"],
+});
+
+export type PasswordResetData = z.infer<typeof passwordResetSchema>;
 
 export const insertExerciseSchema = createInsertSchema(exercises).omit({
   id: true,

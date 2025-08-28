@@ -5,6 +5,7 @@ import {
   workoutSessions,
   personalClients,
   gymMembers,
+  emailTemplates,
   type User,
   type UpsertUser,
   type Exercise,
@@ -17,10 +18,12 @@ import {
   type InsertPersonalClient,
   type GymMember,
   type InsertGymMember,
+  type EmailTemplate,
+  type InsertEmailTemplate,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, or } from "drizzle-orm";
 
 // Interface for storage operations
 export interface IStorage {
@@ -66,10 +69,22 @@ export interface IStorage {
   
   // Admin operations
   getAllUsers(): Promise<User[]>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   createUser(userData: any): Promise<User>;
   updateUser(userId: string, userData: any): Promise<User | undefined>;
   deleteUser(userId: string): Promise<boolean>;
   updateUserType(userId: string, userType: string): Promise<User>;
+  setUserPassword(userId: string, hashedPassword: string): Promise<User>;
+  setPasswordResetToken(userId: string, token: string, expires: Date): Promise<User>;
+  getUserByResetToken(token: string): Promise<User | undefined>;
+  clearPasswordResetToken(userId: string): Promise<User>;
+  
+  // Email template operations
+  getEmailTemplates(): Promise<EmailTemplate[]>;
+  getEmailTemplateByType(userType: string, templateType: string): Promise<EmailTemplate | undefined>;
+  createEmailTemplate(templateData: InsertEmailTemplate): Promise<EmailTemplate>;
+  updateEmailTemplate(templateId: string, templateData: Partial<EmailTemplate>): Promise<EmailTemplate | undefined>;
+  deleteEmailTemplate(templateId: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -489,6 +504,112 @@ export class MemStorage implements IStorage {
     this.users.set(userId, updatedUser);
     return updatedUser;
   }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(u => u.email === email);
+  }
+
+  async setUserPassword(userId: string, hashedPassword: string): Promise<User> {
+    const user = this.users.get(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const updatedUser: User = {
+      ...user,
+      password: hashedPassword,
+      emailVerified: true,
+      updatedAt: new Date(),
+    };
+
+    this.users.set(userId, updatedUser);
+    return updatedUser;
+  }
+
+  async setPasswordResetToken(userId: string, token: string, expires: Date): Promise<User> {
+    const user = this.users.get(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const updatedUser: User = {
+      ...user,
+      passwordResetToken: token,
+      passwordResetExpires: expires,
+      updatedAt: new Date(),
+    };
+
+    this.users.set(userId, updatedUser);
+    return updatedUser;
+  }
+
+  async getUserByResetToken(token: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(u => 
+      u.passwordResetToken === token && 
+      u.passwordResetExpires && 
+      u.passwordResetExpires > new Date()
+    );
+  }
+
+  async clearPasswordResetToken(userId: string): Promise<User> {
+    const user = this.users.get(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const updatedUser: User = {
+      ...user,
+      passwordResetToken: null,
+      passwordResetExpires: null,
+      updatedAt: new Date(),
+    };
+
+    this.users.set(userId, updatedUser);
+    return updatedUser;
+  }
+
+  // Email template operations (memory)
+  private emailTemplates: Map<string, EmailTemplate> = new Map();
+
+  async getEmailTemplates(): Promise<EmailTemplate[]> {
+    return Array.from(this.emailTemplates.values());
+  }
+
+  async getEmailTemplateByType(userType: string, templateType: string): Promise<EmailTemplate | undefined> {
+    return Array.from(this.emailTemplates.values())
+      .find(t => t.userType === userType && t.templateType === templateType && t.isActive);
+  }
+
+  async createEmailTemplate(templateData: InsertEmailTemplate): Promise<EmailTemplate> {
+    const template: EmailTemplate = {
+      ...templateData,
+      id: randomUUID(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.emailTemplates.set(template.id, template);
+    return template;
+  }
+
+  async updateEmailTemplate(templateId: string, templateData: Partial<EmailTemplate>): Promise<EmailTemplate | undefined> {
+    const template = this.emailTemplates.get(templateId);
+    if (!template) {
+      return undefined;
+    }
+
+    const updatedTemplate: EmailTemplate = {
+      ...template,
+      ...templateData,
+      updatedAt: new Date(),
+    };
+
+    this.emailTemplates.set(templateId, updatedTemplate);
+    return updatedTemplate;
+  }
+
+  async deleteEmailTemplate(templateId: string): Promise<boolean> {
+    return this.emailTemplates.delete(templateId);
+  }
 }
 
 export class DatabaseStorage implements IStorage {
@@ -810,6 +931,132 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, userId))
       .returning();
     return updatedUser;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    if (!db) return undefined;
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user || undefined;
+  }
+
+  async setUserPassword(userId: string, hashedPassword: string): Promise<User> {
+    if (!db) throw new Error("Database not available");
+    const [updatedUser] = await db
+      .update(users)
+      .set({ 
+        password: hashedPassword, 
+        emailVerified: true,
+        updatedAt: new Date() 
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return updatedUser;
+  }
+
+  async setPasswordResetToken(userId: string, token: string, expires: Date): Promise<User> {
+    if (!db) throw new Error("Database not available");
+    const [updatedUser] = await db
+      .update(users)
+      .set({ 
+        passwordResetToken: token,
+        passwordResetExpires: expires,
+        updatedAt: new Date() 
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return updatedUser;
+  }
+
+  async getUserByResetToken(token: string): Promise<User | undefined> {
+    if (!db) return undefined;
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(
+        and(
+          eq(users.passwordResetToken, token),
+          // Token ainda válido
+          eq(users.passwordResetExpires, users.passwordResetExpires)
+        )
+      );
+    return user || undefined;
+  }
+
+  async clearPasswordResetToken(userId: string): Promise<User> {
+    if (!db) throw new Error("Database not available");
+    const [updatedUser] = await db
+      .update(users)
+      .set({ 
+        passwordResetToken: null,
+        passwordResetExpires: null,
+        updatedAt: new Date() 
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return updatedUser;
+  }
+
+  // Email template operations
+  async getEmailTemplates(): Promise<EmailTemplate[]> {
+    if (!db) return [];
+    return await db.select().from(emailTemplates).orderBy(desc(emailTemplates.createdAt));
+  }
+
+  async getEmailTemplateByType(userType: string, templateType: string): Promise<EmailTemplate | undefined> {
+    if (!db) return undefined;
+    const [template] = await db
+      .select()
+      .from(emailTemplates)
+      .where(
+        and(
+          eq(emailTemplates.userType, userType),
+          eq(emailTemplates.templateType, templateType),
+          eq(emailTemplates.isActive, true)
+        )
+      );
+    return template || undefined;
+  }
+
+  async createEmailTemplate(templateData: InsertEmailTemplate): Promise<EmailTemplate> {
+    if (!db) throw new Error("Database not available");
+    
+    const templateToInsert = {
+      ...templateData,
+      id: randomUUID(),
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const [newTemplate] = await db.insert(emailTemplates).values(templateToInsert).returning();
+    return newTemplate;
+  }
+
+  async updateEmailTemplate(templateId: string, templateData: Partial<EmailTemplate>): Promise<EmailTemplate | undefined> {
+    if (!db) throw new Error("Database not available");
+    
+    const updateData = {
+      ...templateData,
+      updatedAt: new Date(),
+    };
+
+    const [updatedTemplate] = await db
+      .update(emailTemplates)
+      .set(updateData)
+      .where(eq(emailTemplates.id, templateId))
+      .returning();
+    
+    return updatedTemplate || undefined;
+  }
+
+  async deleteEmailTemplate(templateId: string): Promise<boolean> {
+    if (!db) throw new Error("Database not available");
+    
+    const result = await db
+      .delete(emailTemplates)
+      .where(eq(emailTemplates.id, templateId))
+      .returning();
+    
+    return result.length > 0;
   }
 }
 
