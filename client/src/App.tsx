@@ -18,6 +18,7 @@ import AcademiaRenovacoes from "./pages/academia-renovacoes";
 import AdminUsuarios from "./pages/admin-usuarios";
 import AdminDashboard from "./pages/admin-dashboard";
 import AdminLogin from "./pages/admin-login";
+import TestGifs from "./pages/test-gifs";
 
 function Router() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -39,6 +40,9 @@ function Router() {
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/usuarios" component={AdminUsuarios} />
       <Route path="/admin" component={AdminDashboard} />
+      
+      {/* Test route for GIFs */}
+      <Route path="/test-gifs" component={TestGifs} />
       
       {!isAuthenticated ? (
         <Route path="/" component={Landing} />

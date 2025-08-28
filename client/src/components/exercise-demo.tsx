@@ -1,5 +1,6 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { findExerciseGif } from "@/lib/exercise-gifs";
 
 interface ExerciseDemoProps {
   isOpen: boolean;
@@ -12,6 +13,9 @@ interface ExerciseDemoProps {
 }
 
 export default function ExerciseDemo({ isOpen, onClose, exercise }: ExerciseDemoProps) {
+  // Busca GIF automaticamente se não foi fornecido
+  const gifUrl = exercise.gifUrl || findExerciseGif(exercise.name);
+  
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-md">
@@ -20,19 +24,21 @@ export default function ExerciseDemo({ isOpen, onClose, exercise }: ExerciseDemo
         </DialogHeader>
         
         <div className="space-y-4">
-          {/* Exercise GIF/Video placeholder */}
-          <div className="w-full h-48 bg-muted rounded-lg flex items-center justify-center">
-            {exercise.gifUrl ? (
+          {/* Exercise GIF/Video demonstration */}
+          <div className="w-full h-48 bg-muted rounded-lg flex items-center justify-center overflow-hidden">
+            {gifUrl ? (
               <img 
-                src={exercise.gifUrl} 
-                alt={exercise.name}
+                src={gifUrl} 
+                alt={`Demonstração do exercício: ${exercise.name}`}
                 className="w-full h-full object-cover rounded-lg"
                 data-testid="img-exercise-demo"
+                loading="lazy"
               />
             ) : (
               <div className="text-center">
-                <i className="fas fa-play text-4xl text-muted-foreground mb-2"></i>
-                <p className="text-sm text-muted-foreground">Demo em breve</p>
+                <div className="text-4xl mb-2">🏋️</div>
+                <p className="text-sm text-muted-foreground">Demonstração do exercício</p>
+                <p className="text-xs mt-1">{exercise.name}</p>
               </div>
             )}
           </div>
