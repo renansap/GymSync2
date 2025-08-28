@@ -596,6 +596,7 @@ export class MemStorage implements IStorage {
     const template: EmailTemplate = {
       ...templateData,
       id: randomUUID(),
+      isActive: templateData.isActive ?? true,
       createdAt: new Date(),
       updatedAt: new Date(),
     };

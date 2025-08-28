@@ -119,6 +119,8 @@ export function UserForm({ user, onSubmit, onCancel, isSubmitting = false, title
   };
 
   const onFormSubmit = (data: UserFormData) => {
+    // Debug: log the form data
+    console.log("Form submission data:", { ...data, specializations });
     onSubmit({ ...data, specializations });
   };
 

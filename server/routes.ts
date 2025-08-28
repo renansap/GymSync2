@@ -317,6 +317,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/admin/users', requireAdminAuth, async (req: any, res) => {
     try {
       const userData = req.body;
+      console.log("Creating user with data:", userData);
       
       // Validate required fields
       if (!userData.firstName || !userData.lastName || !userData.email || !userData.userType) {

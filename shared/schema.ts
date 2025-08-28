@@ -231,6 +231,7 @@ export const insertUserSchema = createInsertSchema(users).omit({
   weight: z.number().min(20).max(300).optional(),
   specializations: z.array(z.string()).optional(),
   email: z.string().email("Email inválido"),
+  gymId: z.string().optional().transform((val) => val && val.trim() !== "" ? val : null),
 });
 
 // Login schema
