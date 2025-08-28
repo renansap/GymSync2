@@ -20,6 +20,7 @@ import AdminDashboard from "./pages/admin-dashboard";
 import AdminLogin from "./pages/admin-login";
 import AdminTemplates from "./pages/admin-templates";
 import AdminConfiguracoes from "./pages/admin-configuracoes";
+import MultiLogin from "./pages/multi-login";
 import TestGifs from "./pages/test-gifs";
 
 function Router() {
@@ -38,6 +39,9 @@ function Router() {
 
   return (
     <Switch>
+      {/* Multi-login page - accessible without auth */}
+      <Route path="/login" component={MultiLogin} />
+      
       {/* Admin routes - accessible without main auth */}
       <Route path="/admin/login" component={AdminLogin} />
       <Route path="/admin/usuarios" component={AdminUsuarios} />
