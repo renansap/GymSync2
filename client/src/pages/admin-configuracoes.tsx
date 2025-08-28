@@ -52,14 +52,7 @@ export default function AdminConfiguracoes() {
       badge: "Ativo",
       color: "bg-green-100 text-green-700"
     },
-    {
-      title: "Configurações SMTP", 
-      description: "Configure servidor de email e autenticação",
-      icon: Send,
-      link: "/admin/smtp",
-      badge: "Em breve",
-      color: "bg-gray-100 text-gray-600"
-    },
+    
     {
       title: "Banco de Dados",
       description: "Monitore performance e integridade dos dados",
