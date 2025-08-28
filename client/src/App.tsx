@@ -5,7 +5,6 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import NotFound from "./pages/not-found";
-import Landing from "./pages/landing";
 import Home from "./pages/home";
 import AlunoDashboard from "./pages/aluno-dashboard";
 import PersonalDashboard from "./pages/personal-dashboard";
@@ -55,7 +54,7 @@ function Router() {
       <Route path="/test-gifs" component={TestGifs} />
       
       {!isAuthenticated ? (
-        <Route path="/" component={Landing} />
+        <Route path="/" component={MultiLogin} />
       ) : (
         <>
           <Route path="/" component={Home} />
