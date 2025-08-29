@@ -221,6 +221,17 @@ export async function setupAuth(app: Express) {
 
   app.get("/api/login", (req, res, next) => {
     console.log('🔐 Login route accessed, hostname:', req.hostname);
+    console.log('📧 Query params:', req.query);
+    
+    // Verificar se veio da tela de login personalizada
+    const { email, userType, redirect } = req.query;
+    
+    if (redirect === 'true' && email && userType) {
+      console.log('✅ Login personalizado detectado:', { email, userType });
+      // Armazenar dados temporariamente na sessão para uso posterior
+      (req.session as any).loginData = { email, userType };
+    }
+    
     const strategyName = `replitauth:${req.hostname}`;
     console.log('🎯 Using strategy:', strategyName);
     
@@ -232,12 +243,14 @@ export async function setupAuth(app: Express) {
 
   app.get("/api/callback", (req, res, next) => {
     console.log('🔄 Callback route accessed, hostname:', req.hostname);
+    console.log('📧 Session login data:', (req.session as any)?.loginData);
+    
     const strategyName = `replitauth:${req.hostname}`;
     console.log('🎯 Using strategy:', strategyName);
     
     passport.authenticate(strategyName, {
       successReturnToOrRedirect: "/api/auth/redirect",
-      failureRedirect: "/api/login",
+      failureRedirect: "/login",
     })(req, res, next);
   });
 

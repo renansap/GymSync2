@@ -19,7 +19,7 @@ export default function MultiLogin() {
       textColor: "text-blue-700",
       bgColor: "bg-blue-50",
       borderColor: "border-blue-200",
-      link: "/api/login",
+      link: "/login",
       badge: "Alunos & Personal",
       features: ["Treinos Personalizados", "Acompanhamento IA", "Histórico Completo"]
     },

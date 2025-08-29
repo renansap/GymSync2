@@ -27,24 +27,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       console.log('👤 User ID:', userId);
       
+      // Verificar se há dados de login na sessão
+      const sessionLoginData = (req.session as any)?.loginData;
+      console.log('📧 Session login data:', sessionLoginData);
+      
       const user = await storage.getUser(userId);
       console.log('👤 User data:', user);
       
-      // Redirect based on user type
+      // Redirect based on user type (priorizar dados da sessão)
       let redirectUrl = '/';
+      let userType = user?.userType;
       
-      if (user?.userType === 'aluno') {
+      // Se há dados da sessão, usar o tipo selecionado pelo usuário
+      if (sessionLoginData?.userType && typeof sessionLoginData.userType === 'string') {
+        userType = sessionLoginData.userType;
+        console.log('🎯 Using user type from session:', userType);
+      }
+      
+      if (userType === 'aluno') {
         redirectUrl = '/aluno';
         console.log('🎯 Redirecting aluno to:', redirectUrl);
-      } else if (user?.userType === 'personal') {
+      } else if (userType === 'personal') {
         redirectUrl = '/personal';
         console.log('🎯 Redirecting personal to:', redirectUrl);
-      } else if (user?.userType === 'academia') {
+      } else if (userType === 'academia') {
         redirectUrl = '/academia';
         console.log('🎯 Redirecting academia to:', redirectUrl);
       } else {
         console.log('🎯 No user type found, redirecting to home');
         redirectUrl = '/';
+      }
+      
+      // Limpar dados da sessão após uso
+      if ((req.session as any)?.loginData) {
+        delete (req.session as any).loginData;
+        console.log('🧹 Session login data cleared');
       }
       
       console.log('🚀 Final redirect URL:', redirectUrl);
