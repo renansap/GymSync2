@@ -966,11 +966,17 @@ export class DatabaseStorage implements IStorage {
   async createUser(userData: any): Promise<User> {
     if (!db) throw new Error("Database not available");
     
+    // Ensure timestamps are valid Date objects
     const userToInsert = {
       ...userData,
       id: randomUUID(),
       createdAt: new Date(),
       updatedAt: new Date(),
+      // Convert string dates to Date objects if they exist
+      birthDate: userData.birthDate ? new Date(userData.birthDate) : null,
+      membershipStart: userData.membershipStart ? new Date(userData.membershipStart) : null,
+      membershipEnd: userData.membershipEnd ? new Date(userData.membershipEnd) : null,
+      lastLogin: userData.lastLogin ? new Date(userData.lastLogin) : null,
     };
 
     const [newUser] = await db.insert(users).values(userToInsert).returning();
@@ -980,9 +986,15 @@ export class DatabaseStorage implements IStorage {
   async updateUser(userId: string, userData: any): Promise<User | undefined> {
     if (!db) throw new Error("Database not available");
     
+    // Ensure timestamps are valid Date objects
     const updateData = {
       ...userData,
       updatedAt: new Date(),
+      // Convert string dates to Date objects if they exist
+      birthDate: userData.birthDate ? new Date(userData.birthDate) : userData.birthDate,
+      membershipStart: userData.membershipStart ? new Date(userData.membershipStart) : userData.membershipStart,
+      membershipEnd: userData.membershipEnd ? new Date(userData.membershipEnd) : userData.membershipEnd,
+      lastLogin: userData.lastLogin ? new Date(userData.lastLogin) : userData.lastLogin,
     };
 
     const [updatedUser] = await db

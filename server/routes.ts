@@ -349,16 +349,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create new user (admin only)
   app.post('/api/admin/users', requireAdminAuth, async (req: any, res) => {
     try {
-      const userData = req.body;
-      
-      // Validate required fields
-      if (!userData.firstName || !userData.lastName || !userData.email || !userData.userType) {
-        return res.status(400).json({ message: "Missing required fields: firstName, lastName, email, userType" });
-      }
-      
-      if (!['aluno', 'personal', 'academia'].includes(userData.userType)) {
-        return res.status(400).json({ message: "Invalid user type" });
-      }
+      // Import and validate with schema
+      const { insertUserSchema } = await import("@shared/schema");
+      const userData = insertUserSchema.parse(req.body);
       
       // Check if email already exists
       const existingUser = await storage.getUserByEmail(userData.email);
@@ -695,16 +688,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       if (templateType === 'welcome') {
-        const testToken = emailService.generatePasswordResetToken();
-        const emailSent = await emailService.sendWelcomeEmail(
+        const emailSent = await emailService.sendTestEmail(
           email,
-          'Usuário Teste',
           userType,
-          testToken,
+          templateType,
           template
         );
         
-        res.json({ success: emailSent, message: emailSent ? "Email de teste enviado" : "Falha ao enviar email" });
+        if (emailSent) {
+          res.json({ 
+            success: true, 
+            message: "Email de teste enviado com sucesso!",
+            details: {
+              to: email,
+              userType: userType,
+              templateType: templateType,
+              subject: template.subject
+            }
+          });
+        } else {
+          res.status(500).json({ 
+            success: false, 
+            message: "Falha ao enviar email de teste" 
+          });
+        }
       } else {
         res.status(400).json({ message: "Template type not supported for testing" });
       }

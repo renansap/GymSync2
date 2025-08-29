@@ -21,6 +21,7 @@ import AdminTemplates from "./pages/admin-templates";
 import AdminConfiguracoes from "./pages/admin-configuracoes";
 import AdminAcademias from "./pages/admin-academias";
 import MultiLogin from "./pages/multi-login";
+import DefinirSenha from "./pages/definir-senha";
 import TestGifs from "./pages/test-gifs";
 
 function Router() {
@@ -41,6 +42,9 @@ function Router() {
     <Switch>
       {/* Multi-login page - accessible without auth */}
       <Route path="/login" component={MultiLogin} />
+      
+      {/* Password setup page - accessible without auth */}
+      <Route path="/definir-senha" component={DefinirSenha} />
       
       {/* Admin routes - accessible without main auth */}
       <Route path="/admin/login" component={AdminLogin} />

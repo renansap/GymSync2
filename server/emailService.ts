@@ -22,7 +22,7 @@ export class EmailService {
     try {
       const msg = {
         to: emailData.to,
-        from: emailData.from || this.fromEmail,
+        from: this.fromEmail,
         subject: emailData.subject,
         html: emailData.html,
         text: emailData.text || this.stripHtml(emailData.html),
@@ -66,8 +66,39 @@ export class EmailService {
 
     return await this.sendEmail({
       to: userEmail,
-      from: this.fromEmail,
       subject: subject,
+      html: htmlContent,
+    });
+  }
+
+  async sendTestEmail(
+    userEmail: string, 
+    userType: string, 
+    templateType: string,
+    template: { subject: string; content: string }
+  ): Promise<boolean> {
+    // Para emails de teste, usamos dados fictícios
+    const testUserName = 'Usuário Teste';
+    const testResetToken = this.generatePasswordResetToken();
+    const resetLink = `${process.env.REPLIT_DOMAIN || 'http://localhost:5000'}/definir-senha?token=${testResetToken}`;
+    
+    // Substituir variáveis do template
+    let subject = template.subject
+      .replace(/\{\{nome\}\}/g, testUserName)
+      .replace(/\{\{email\}\}/g, userEmail)
+      .replace(/\{\{tipo\}\}/g, this.getUserTypeLabel(userType));
+
+    let content = template.content
+      .replace(/\{\{nome\}\}/g, testUserName)
+      .replace(/\{\{email\}\}/g, userEmail)
+      .replace(/\{\{tipo\}\}/g, this.getUserTypeLabel(userType))
+      .replace(/\{\{link_senha\}\}/g, resetLink);
+
+    const htmlContent = this.createEmailHtml(content, subject);
+
+    return await this.sendEmail({
+      to: userEmail,
+      subject: `[TESTE] ${subject}`,
       html: htmlContent,
     });
   }
@@ -85,7 +116,7 @@ export class EmailService {
       <p>Olá ${userName},</p>
       <p>Você solicitou a redefinição de sua senha no GymSync.</p>
       <p>Clique no link abaixo para definir uma nova senha:</p>
-      <p><a href="${resetLink}" style="background-color: #4F46E5; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Redefinir Senha</a></p>
+      <p><a href="${resetLink}" class="button">Redefinir Senha</a></p>
       <p>Este link expira em 1 hora.</p>
       <p>Se você não solicitou esta redefinição, ignore este email.</p>
     `;
@@ -94,8 +125,34 @@ export class EmailService {
 
     return await this.sendEmail({
       to: userEmail,
-      from: this.fromEmail,
       subject: subject,
+      html: htmlContent,
+    });
+  }
+
+  async sendCustomEmail(
+    userEmail: string,
+    subject: string,
+    content: string,
+    variables?: Record<string, string>
+  ): Promise<boolean> {
+    // Substituir variáveis personalizadas se fornecidas
+    let processedContent = content;
+    let processedSubject = subject;
+    
+    if (variables) {
+      Object.entries(variables).forEach(([key, value]) => {
+        const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
+        processedContent = processedContent.replace(regex, value);
+        processedSubject = processedSubject.replace(regex, value);
+      });
+    }
+
+    const htmlContent = this.createEmailHtml(processedContent, processedSubject);
+
+    return await this.sendEmail({
+      to: userEmail,
+      subject: processedSubject,
       html: htmlContent,
     });
   }

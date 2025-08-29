@@ -29,6 +29,23 @@ export default function AdminTemplates() {
   const [showTestDialog, setShowTestDialog] = useState(false);
   const [testEmail, setTestEmail] = useState("");
 
+  // Form states for create
+  const [createForm, setCreateForm] = useState({
+    userType: '',
+    templateType: '',
+    subject: '',
+    content: ''
+  });
+
+  // Form states for edit
+  const [editForm, setEditForm] = useState({
+    userType: '',
+    templateType: '',
+    subject: '',
+    content: '',
+    isActive: true
+  });
+
   // Check admin authentication
   const { data: adminAuth, isLoading: isLoadingAdminAuth } = useQuery<{ authenticated: boolean }>({
     queryKey: ["/api/admin/check"],
@@ -114,11 +131,11 @@ export default function AdminTemplates() {
   const seedTemplatesMutation = useMutation({
     mutationFn: () => 
       apiRequest("POST", "/api/admin/seed-templates"),
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/email-templates"] });
       toast({
         title: "Templates padrão criados!",
-        description: data.message,
+        description: data?.message || "Templates padrão foram criados com sucesso",
       });
     },
     onError: (error: any) => {
@@ -153,6 +170,13 @@ export default function AdminTemplates() {
 
   const handleEditTemplate = (template: EmailTemplate) => {
     setSelectedTemplate(template);
+    setEditForm({
+      userType: template.userType,
+      templateType: template.templateType,
+      subject: template.subject,
+      content: template.content,
+      isActive: template.isActive ?? true
+    });
     setShowEditForm(true);
   };
 
@@ -384,7 +408,282 @@ export default function AdminTemplates() {
 
       <BottomNavigation activeView="academia" />
 
-      {/* Dialogs and forms would be added here */}
+      {/* Create Template Dialog */}
+      <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Criar Novo Template</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            createTemplateMutation.mutate({
+              userType: createForm.userType,
+              templateType: createForm.templateType,
+              subject: createForm.subject,
+              content: createForm.content,
+              isActive: true
+            });
+          }}>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="userType">Tipo de Usuário</Label>
+                  <Select value={createForm.userType} onValueChange={(value) => setCreateForm(prev => ({ ...prev, userType: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="aluno">Aluno</SelectItem>
+                      <SelectItem value="personal">Personal Trainer</SelectItem>
+                      <SelectItem value="academia">Academia/Admin</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="templateType">Tipo de Template</Label>
+                  <Select value={createForm.templateType} onValueChange={(value) => setCreateForm(prev => ({ ...prev, templateType: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="welcome">Boas-vindas</SelectItem>
+                      <SelectItem value="password_reset">Redefinição de Senha</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              
+              <div>
+                <Label htmlFor="subject">Assunto do Email</Label>
+                <Input 
+                  value={createForm.subject}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, subject: e.target.value }))}
+                  placeholder="Ex: Bem-vindo ao GymSync!" 
+                  required 
+                />
+              </div>
+              
+              <div>
+                <Label htmlFor="content">Conteúdo do Email</Label>
+                <Textarea 
+                  value={createForm.content}
+                  onChange={(e) => setCreateForm(prev => ({ ...prev, content: e.target.value }))}
+                  placeholder="Digite o conteúdo do email. Use {{nome}}, {{email}}, {{tipo}} e {{link_senha}} como variáveis."
+                  rows={8}
+                  required 
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Variáveis disponíveis: {'{nome}'}, {'{email}'}, {'{tipo}'}, {'{link_senha}'}
+                </p>
+              </div>
+              
+              <div className="flex justify-end space-x-2">
+                <Button 
+                  type="button" 
+                  variant="outline" 
+                  onClick={() => {
+                    setShowCreateForm(false);
+                    setCreateForm({ userType: '', templateType: '', subject: '', content: '' });
+                  }}
+                >
+                  Cancelar
+                </Button>
+                <Button 
+                  type="submit" 
+                  disabled={createTemplateMutation.isPending || !createForm.userType || !createForm.templateType || !createForm.subject || !createForm.content}
+                >
+                  {createTemplateMutation.isPending ? "Criando..." : "Criar Template"}
+                </Button>
+              </div>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Template Dialog */}
+      <Dialog open={showEditForm} onOpenChange={(open) => {
+        setShowEditForm(open);
+        if (!open) {
+          setSelectedTemplate(null);
+          setEditForm({ userType: '', templateType: '', subject: '', content: '', isActive: true });
+        }
+      }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Template</DialogTitle>
+          </DialogHeader>
+          {selectedTemplate && (
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const formData = new FormData(e.currentTarget);
+              updateTemplateMutation.mutate({
+                templateId: selectedTemplate.id,
+                templateData: {
+                  userType: formData.get('userType') as string,
+                  templateType: formData.get('templateType') as string,
+                  subject: formData.get('subject') as string,
+                  content: formData.get('content') as string,
+                  isActive: formData.get('isActive') === 'true'
+                }
+              });
+            }}>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="editUserType">Tipo de Usuário</Label>
+                    <Select value={editForm.userType} onValueChange={(value) => setEditForm(prev => ({ ...prev, userType: value }))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="aluno">Aluno</SelectItem>
+                        <SelectItem value="personal">Personal Trainer</SelectItem>
+                        <SelectItem value="academia">Academia/Admin</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="editTemplateType">Tipo de Template</Label>
+                    <Select value={editForm.templateType} onValueChange={(value) => setEditForm(prev => ({ ...prev, templateType: value }))}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="welcome">Boas-vindas</SelectItem>
+                        <SelectItem value="password_reset">Redefinição de Senha</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                <div>
+                  <Label htmlFor="editSubject">Assunto do Email</Label>
+                  <Input 
+                    value={editForm.subject}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, subject: e.target.value }))}
+                    placeholder="Ex: Bem-vindo ao GymSync!" 
+                    required 
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor="editContent">Conteúdo do Email</Label>
+                  <Textarea 
+                    value={editForm.content}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, content: e.target.value }))}
+                    placeholder="Digite o conteúdo do email. Use {'{nome}'}, {'{email}'}, {'{tipo}'} e {'{link_senha}'} como variáveis."
+                    rows={8}
+                    required 
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Variáveis disponíveis: {'{nome}'}, {'{email}'}, {'{tipo}'}, {'{link_senha}'}
+                  </p>
+                </div>
+                
+                <div>
+                  <Label htmlFor="editIsActive">Status</Label>
+                  <Select value={editForm.isActive.toString()} onValueChange={(value) => setEditForm(prev => ({ ...prev, isActive: value === 'true' }))}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="true">Ativo</SelectItem>
+                      <SelectItem value="false">Inativo</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex justify-end space-x-2">
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    onClick={() => {
+                      setShowEditForm(false);
+                      setSelectedTemplate(null);
+                      setEditForm({ userType: '', templateType: '', subject: '', content: '', isActive: true });
+                    }}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button 
+                    type="submit" 
+                    disabled={updateTemplateMutation.isPending}
+                  >
+                    {updateTemplateMutation.isPending ? "Salvando..." : "Salvar Alterações"}
+                  </Button>
+                </div>
+              </div>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirmar Exclusão</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir o template "{templateToDelete?.templateType}" para {getUserTypeLabel(templateToDelete?.userType || '')}?
+              Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={confirmDeleteTemplate}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {deleteTemplateMutation.isPending ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Test Email Dialog */}
+      <Dialog open={showTestDialog} onOpenChange={setShowTestDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Testar Template de Email</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="testEmail">Email para Teste</Label>
+              <Input 
+                id="testEmail"
+                type="email" 
+                placeholder="seu@email.com"
+                value={testEmail}
+                onChange={(e) => setTestEmail(e.target.value)}
+                required 
+              />
+            </div>
+            
+            <div className="bg-muted p-3 rounded-lg">
+              <p className="text-sm text-muted-foreground">
+                <strong>Template:</strong> {selectedTemplate?.templateType === 'welcome' ? 'Boas-vindas' : 'Redefinição de Senha'}<br/>
+                <strong>Usuário:</strong> {getUserTypeLabel(selectedTemplate?.userType || '')}<br/>
+                <strong>Assunto:</strong> {selectedTemplate?.subject}
+              </p>
+            </div>
+            
+            <div className="flex justify-end space-x-2">
+              <Button 
+                variant="outline" 
+                onClick={() => setShowTestDialog(false)}
+              >
+                Cancelar
+              </Button>
+              <Button 
+                onClick={confirmTestEmail}
+                disabled={!testEmail || testEmailMutation.isPending}
+              >
+                {testEmailMutation.isPending ? "Enviando..." : "Enviar Email de Teste"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
