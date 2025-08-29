@@ -371,7 +371,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userData = insertUserSchema.parse(req.body);
       
       // Check if email already exists
-      const existingUser = await storage.getUserByEmail(userData.email);
+      const existingUser = await storage.getUserByEmail(userData.email as string);
       if (existingUser) {
         return res.status(409).json({ message: "Email já está em uso" });
       }
@@ -386,13 +386,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.setPasswordResetToken(user.id, welcomeToken, expires);
       
       // Get welcome email template
-      const template = await storage.getEmailTemplateByType(userData.userType, 'welcome');
+      const template = await storage.getEmailTemplateByType(userData.userType as string, 'welcome');
       if (template) {
         const userName = `${userData.firstName} ${userData.lastName}`.trim();
         const emailSent = await emailService.sendWelcomeEmail(
-          userData.email,
+          userData.email as string,
           userName,
-          userData.userType,
+          userData.userType as string,
           welcomeToken,
           template
         );
@@ -407,7 +407,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(201).json(user);
     } catch (error) {
       console.error("Error creating user:", error);
-      if (error.message?.includes('duplicate key')) {
+      if ((error as Error).message?.includes('duplicate key')) {
         res.status(409).json({ message: "Email já está em uso" });
       } else {
         res.status(500).json({ message: "Failed to create user" });
@@ -440,7 +440,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userData = updateUserSchema.parse(req.body);
       
       // Validate user type if provided
-      if (userData.userType && !['aluno', 'personal', 'academia'].includes(userData.userType)) {
+      if (userData.userType && !['aluno', 'personal', 'academia'].includes(userData.userType as string)) {
         return res.status(400).json({ message: "Invalid user type" });
       }
       
@@ -453,7 +453,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(user);
     } catch (error) {
       console.error("Error updating user:", error);
-      if (error.message?.includes('duplicate key')) {
+      if ((error as Error).message?.includes('duplicate key')) {
         res.status(409).json({ message: "Email already exists" });
       } else {
         res.status(500).json({ message: "Failed to update user" });
@@ -515,8 +515,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.updateUser(user.id, { lastLogin: new Date() });
       
       // Set session
-      req.session.userId = user.id;
-      req.session.userEmail = user.email;
+      (req.session as any).userId = user.id;
+      (req.session as any).userEmail = user.email;
       
       res.json({ 
         user: { 
@@ -544,8 +544,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         userId = (req.user as any).claims.sub;
       }
       // Check for manual auth - userId is in session
-      else if (req.session?.userId) {
-        userId = req.session.userId as string;
+      else if ((req.session as any)?.userId) {
+        userId = (req.session as any).userId as string;
       }
       
       if (!userId) {
