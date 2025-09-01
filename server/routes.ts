@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { isAuthenticated, AuthenticatedRequest } from "./auth";
@@ -245,7 +245,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Academia module routes
-  const requireAcademiaRole = (req: AuthenticatedRequest, res: express.Response, next: express.NextFunction) => {
+  const requireAcademiaRole = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     const user = req.user;
     if (!user) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -255,7 +255,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Admin authentication middleware
-  const requireAdminAuth = (req: AuthenticatedRequest, res: express.Response, next: express.NextFunction) => {
+  const requireAdminAuth = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     if (!(req.session as any)?.adminAuthenticated) {
       return res.status(401).json({ message: "Admin authentication required" });
     }

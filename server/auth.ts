@@ -1,4 +1,4 @@
-import express from "express";
+import express, { Request, Response, NextFunction } from "express";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import bcrypt from "bcrypt";
@@ -18,7 +18,7 @@ export interface User {
   updatedAt: Date;
 }
 
-export interface AuthenticatedRequest extends express.Request {
+export interface AuthenticatedRequest extends Request {
   user?: User;
   isAuthenticated(): boolean;
   login(user: any, callback: (err: any) => void): void;
@@ -26,7 +26,7 @@ export interface AuthenticatedRequest extends express.Request {
 }
 
 // Middleware para verificar JWT
-export const authenticateJWT = (req: AuthenticatedRequest, res: express.Response, next: express.NextFunction) => {
+export const authenticateJWT = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
 
   if (authHeader) {
@@ -46,7 +46,7 @@ export const authenticateJWT = (req: AuthenticatedRequest, res: express.Response
 };
 
 // Middleware para verificar se está autenticado
-export const isAuthenticated = (req: AuthenticatedRequest, res: express.Response, next: express.NextFunction) => {
+export const isAuthenticated = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
   if (req.isAuthenticated && req.isAuthenticated()) {
     return next();
   }
