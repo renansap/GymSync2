@@ -1229,6 +1229,79 @@ export class DatabaseStorage implements IStorage {
     }
     return result;
   }
+
+  // User authentication methods
+  async getUserByEmail(email: string): Promise<User | null> {
+    if (!db) throw new Error("Database not available");
+    
+    try {
+      const [user] = await db.select().from(users).where(eq(users.email, email));
+      return user || null;
+    } catch (error) {
+      console.error('Error getting user by email:', error);
+      return null;
+    }
+  }
+
+  async getUserByGoogleId(googleId: string): Promise<User | null> {
+    if (!db) throw new Error("Database not available");
+    
+    try {
+      const [user] = await db.select().from(users).where(eq(users.googleId, googleId));
+      return user || null;
+    } catch (error) {
+      console.error('Error getting user by Google ID:', error);
+      return null;
+    }
+  }
+
+  async createUser(userData: {
+    email: string;
+    password?: string;
+    userType: string;
+    name?: string;
+    googleId?: string;
+  }): Promise<User> {
+    if (!db) throw new Error("Database not available");
+    
+    try {
+      const [user] = await db.insert(users).values({
+        id: randomUUID(),
+        email: userData.email,
+        password: userData.password,
+        userType: userData.userType as any,
+        name: userData.name || userData.email.split('@')[0],
+        googleId: userData.googleId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }).returning();
+      
+      return user;
+    } catch (error) {
+      console.error('Error creating user:', error);
+      throw error;
+    }
+  }
+
+  async updateUserGoogleId(userId: string, googleId: string): Promise<User> {
+    if (!db) throw new Error("Database not available");
+    
+    try {
+      const [user] = await db
+        .update(users)
+        .set({ 
+          googleId, 
+          updatedAt: new Date() 
+        })
+        .where(eq(users.id, userId))
+        .returning();
+      
+      return user;
+    } catch (error) {
+      console.error('Error updating user Google ID:', error);
+      throw error;
+    }
+  }
 }
 
 // Storage implementation - will be initialized dynamically

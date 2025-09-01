@@ -1,7 +1,7 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { setupAuth } from "./replitAuth";
+import { setupPassport, setupAuthRoutes } from "./auth";
 import "./db"; // Initialize database connection
 
 const app = express();
@@ -41,7 +41,8 @@ app.use((req, res, next) => {
 (async () => {
   // Setup authentication first, before any routes
   console.log('🔧 Starting authentication setup...');
-  await setupAuth(app);
+  setupPassport(app);
+  setupAuthRoutes(app);
   console.log('✅ Authentication setup completed');
 
   const server = await registerRoutes(app);
