@@ -20,6 +20,9 @@ export interface User {
 
 export interface AuthenticatedRequest extends express.Request {
   user?: User;
+  isAuthenticated(): boolean;
+  login(user: any, callback: (err: any) => void): void;
+  logout(callback: (err: any) => void): void;
 }
 
 // Middleware para verificar JWT
@@ -44,7 +47,7 @@ export const authenticateJWT = (req: AuthenticatedRequest, res: express.Response
 
 // Middleware para verificar se está autenticado
 export const isAuthenticated = (req: AuthenticatedRequest, res: express.Response, next: express.NextFunction) => {
-  if (req.isAuthenticated()) {
+  if (req.isAuthenticated && req.isAuthenticated()) {
     return next();
   }
   res.status(401).json({ message: "Não autenticado" });
@@ -60,8 +63,12 @@ export const setupPassport = (app: express.Application) => {
   passport.deserializeUser(async (id: string, done) => {
     try {
       const user = await storage.getUser(id);
+      if (!user) {
+        return done(new Error('Usuário não encontrado'), null);
+      }
       done(null, user);
     } catch (error) {
+      console.error('Erro ao deserializar usuário:', error);
       done(error, null);
     }
   });
@@ -107,12 +114,14 @@ export const setupPassport = (app: express.Application) => {
 
   app.use(passport.initialize());
   app.use(passport.session());
+  
+  console.log('✅ Passport configurado com sucesso');
 };
 
 // Rotas de autenticação
 export const setupAuthRoutes = (app: express.Application) => {
   // Login tradicional
-  app.post('/api/auth/login', async (req, res) => {
+  app.post('/api/auth/login', async (req: AuthenticatedRequest, res) => {
     try {
       const { email, password, userType } = req.body;
 
@@ -145,6 +154,7 @@ export const setupAuthRoutes = (app: express.Application) => {
       // Login bem-sucedido
       req.login(user, (err) => {
         if (err) {
+          console.error("Erro no login:", err);
           return res.status(500).json({ message: "Erro ao fazer login" });
         }
 
@@ -177,12 +187,26 @@ export const setupAuthRoutes = (app: express.Application) => {
   });
 
   // Logout
-  app.post('/api/auth/logout', (req, res) => {
+  app.post('/api/auth/logout', (req: AuthenticatedRequest, res) => {
     req.logout((err) => {
       if (err) {
+        console.error("Erro no logout:", err);
         return res.status(500).json({ message: "Erro ao fazer logout" });
       }
-      res.json({ message: "Logout realizado com sucesso" });
+      // Redirecionar para o portal principal após o logout
+      res.redirect('/');
+    });
+  });
+
+  // Logout GET (para compatibilidade com links diretos)
+  app.get('/api/auth/logout', (req: AuthenticatedRequest, res) => {
+    req.logout((err) => {
+      if (err) {
+        console.error("Erro no logout:", err);
+        return res.status(500).json({ message: "Erro ao fazer logout" });
+      }
+      // Redirecionar para o portal principal após o logout
+      res.redirect('/');
     });
   });
 

@@ -257,12 +257,16 @@ export async function setupAuth(app: Express) {
   app.get("/api/logout", (req, res) => {
     console.log('🚪 Logout route accessed');
     req.logout(() => {
-      res.redirect(
-        client.buildEndSessionUrl(config, {
-          client_id: process.env.REPL_ID!,
-          post_logout_redirect_uri: `${req.protocol}://${req.hostname}`,
-        }).href
-      );
+      // Primeiro redirecionar para o logout do Replit
+      const replitLogoutUrl = client.buildEndSessionUrl(config, {
+        client_id: process.env.REPL_ID!,
+        post_logout_redirect_uri: `${req.protocol}://${req.hostname}`,
+      }).href;
+      
+      console.log('🔄 Redirecionando para logout do Replit:', replitLogoutUrl);
+      
+      // Redirecionar para o portal principal após o logout
+      res.redirect('/');
     });
   });
   

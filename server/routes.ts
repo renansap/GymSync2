@@ -11,7 +11,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
   app.get('/api/auth/user', isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
       const user = await storage.getUser(userId);
       res.json(user);
     } catch (error) {
@@ -21,10 +24,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Smart redirect route based on user type
-  app.get('/api/auth/redirect', isAuthenticated, async (req: any, res) => {
+  app.get('/api/auth/redirect', isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
       console.log('🔍 Redirect route accessed');
-      const userId = req.user.claims.sub;
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
       console.log('👤 User ID:', userId);
       
       // Verificar se há dados de login na sessão
@@ -74,7 +80,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI Workout Generation
-  app.post('/api/ia/treino', isAuthenticated, async (req: any, res) => {
+  app.post('/api/ia/treino', isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
       const { objetivo, nivel, diasPorSemana, historico } = req.body;
       
@@ -90,7 +96,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
 
       // Convert AI response to workout format and save
-      const userId = req.user.claims.sub;
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
       const workout = await storage.createWorkout({
         userId,
         name: aiWorkout.nome,
@@ -107,9 +116,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Workout routes
-  app.get('/api/workouts', isAuthenticated, async (req: any, res) => {
+  app.get('/api/workouts', isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
       const workouts = await storage.getWorkoutsByUser(userId);
       res.json(workouts);
     } catch (error) {
@@ -118,9 +130,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/workouts', isAuthenticated, async (req: any, res) => {
+  app.post('/api/workouts', isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
       const workoutData = insertWorkoutSchema.parse({ ...req.body, userId });
       const workout = await storage.createWorkout(workoutData);
       res.json(workout);
@@ -131,7 +146,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Exercise routes
-  app.get('/api/exercises', isAuthenticated, async (req: any, res) => {
+  app.get('/api/exercises', isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
       const exercises = await storage.getExercises();
       res.json(exercises);
@@ -142,9 +157,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Workout session routes
-  app.get('/api/workout-sessions', isAuthenticated, async (req: any, res) => {
+  app.get('/api/workout-sessions', isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
       const sessions = await storage.getWorkoutSessionsByUser(userId);
       res.json(sessions);
     } catch (error) {
@@ -153,9 +171,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/workout-sessions', isAuthenticated, async (req: any, res) => {
+  app.post('/api/workout-sessions', isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
       const sessionData = insertWorkoutSessionSchema.parse({ ...req.body, userId });
       const session = await storage.createWorkoutSession(sessionData);
       res.json(session);
@@ -165,9 +186,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/workout-sessions/active', isAuthenticated, async (req: any, res) => {
+  app.get('/api/workout-sessions/active', isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const userId = req.user.claims.sub;
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
       const activeSession = await storage.getActiveWorkoutSession(userId);
       res.json(activeSession);
     } catch (error) {
@@ -176,10 +200,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.patch('/api/workout-sessions/:sessionId/finish', isAuthenticated, async (req: any, res) => {
+  app.patch('/api/workout-sessions/:sessionId/finish', isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
       const { sessionId } = req.params;
-      const userId = req.user.claims.sub;
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
       const session = await storage.updateWorkoutSession(sessionId, { completed: true, endTime: new Date() });
       res.json(session);
     } catch (error) {
@@ -189,9 +216,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Gym admin routes
-  app.get('/api/gym/members', isAuthenticated, async (req: any, res) => {
+  app.get('/api/gym/members', isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const gymId = req.user.claims.sub;
+      const gymId = req.user?.id;
+      if (!gymId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
       const members = await storage.getGymMembers(gymId);
       res.json(members);
     } catch (error) {
@@ -200,9 +230,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.get('/api/gym/birthdays', isAuthenticated, async (req: any, res) => {
+  app.get('/api/gym/birthdays', isAuthenticated, async (req: AuthenticatedRequest, res) => {
     try {
-      const gymId = req.user.claims.sub;
+      const gymId = req.user?.id;
+      if (!gymId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
       const birthdayMembers = await storage.getBirthdayMembers(gymId);
       res.json(birthdayMembers);
     } catch (error) {
@@ -212,7 +245,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Academia module routes
-  const requireAcademiaRole = (req: any, res: any, next: any) => {
+  const requireAcademiaRole = (req: AuthenticatedRequest, res: express.Response, next: express.NextFunction) => {
     const user = req.user;
     if (!user) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -222,7 +255,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Admin authentication middleware
-  const requireAdminAuth = (req: any, res: any, next: any) => {
+  const requireAdminAuth = (req: AuthenticatedRequest, res: express.Response, next: express.NextFunction) => {
     if (!(req.session as any)?.adminAuthenticated) {
       return res.status(401).json({ message: "Admin authentication required" });
     }
@@ -250,7 +283,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Admin logout route
   app.post('/api/admin/logout', (req, res) => {
     (req.session as any).adminAuthenticated = false;
-    res.json({ success: true, message: "Admin logout successful" });
+    // Redirecionar para o portal principal após o logout
+    res.redirect('/');
+  });
+
+  // Admin logout GET (para compatibilidade com links diretos)
+  app.get('/api/admin/logout', (req, res) => {
+    (req.session as any).adminAuthenticated = false;
+    // Redirecionar para o portal principal após o logout
+    res.redirect('/');
   });
 
   // Admin check route
@@ -259,9 +300,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Academia dashboard
-  app.get('/api/academia/dashboard', isAuthenticated, requireAcademiaRole, async (req: any, res) => {
+  app.get('/api/academia/dashboard', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
     try {
-      const gymId = req.user.claims.sub;
+      const gymId = req.user?.id;
+      if (!gymId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
       const dashboard = await storage.getAcademiaDashboard(gymId);
       res.json(dashboard);
     } catch (error) {
@@ -271,9 +315,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Academia alunos
-  app.get('/api/academia/alunos', isAuthenticated, requireAcademiaRole, async (req: any, res) => {
+  app.get('/api/academia/alunos', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
     try {
-      const gymId = req.user.claims.sub;
+      const gymId = req.user?.id;
+      if (!gymId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
       const alunos = await storage.getAcademiaAlunos(gymId);
       res.json(alunos);
     } catch (error) {
@@ -282,9 +329,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/academia/alunos', isAuthenticated, requireAcademiaRole, async (req: any, res) => {
+  app.post('/api/academia/alunos', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
     try {
-      const gymId = req.user.claims.sub;
+      const gymId = req.user?.id;
+      if (!gymId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
       const aluno = await storage.createAcademiaAluno({ ...req.body, gymId });
       res.json(aluno);
     } catch (error) {
@@ -294,9 +344,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Academia personais
-  app.get('/api/academia/personais', isAuthenticated, requireAcademiaRole, async (req: any, res) => {
+  app.get('/api/academia/personais', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
     try {
-      const gymId = req.user.claims.sub;
+      const gymId = req.user?.id;
+      if (!gymId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
       const personais = await storage.getAcademiaPersonais(gymId);
       res.json(personais);
     } catch (error) {
@@ -305,9 +358,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/academia/personais', isAuthenticated, requireAcademiaRole, async (req: any, res) => {
+  app.post('/api/academia/personais', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
     try {
-      const gymId = req.user.claims.sub;
+      const gymId = req.user?.id;
+      if (!gymId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
       const personal = await storage.createAcademiaPersonal({ ...req.body, gymId });
       res.json(personal);
     } catch (error) {
@@ -317,9 +373,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Academia engajamento
-  app.get('/api/academia/engajamento', isAuthenticated, requireAcademiaRole, async (req: any, res) => {
+  app.get('/api/academia/engajamento', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
     try {
-      const gymId = req.user.claims.sub;
+      const gymId = req.user?.id;
+      if (!gymId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
       const engajamento = await storage.getAcademiaEngajamento(gymId);
       res.json(engajamento);
     } catch (error) {
@@ -329,9 +388,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Academia aniversariantes
-  app.get('/api/academia/aniversariantes', isAuthenticated, requireAcademiaRole, async (req: any, res) => {
+  app.get('/api/academia/aniversariantes', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
     try {
-      const gymId = req.user.claims.sub;
+      const gymId = req.user?.id;
+      if (!gymId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
       const aniversariantes = await storage.getAcademiaAniversariantes(gymId);
       res.json(aniversariantes);
     } catch (error) {
@@ -341,9 +403,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Academia renovações
-  app.get('/api/academia/renovacoes', isAuthenticated, requireAcademiaRole, async (req: any, res) => {
+  app.get('/api/academia/renovacoes', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
     try {
-      const gymId = req.user.claims.sub;
+      const gymId = req.user?.id;
+      if (!gymId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
       const renovacoes = await storage.getAcademiaRenovacoes(gymId);
       res.json(renovacoes);
     } catch (error) {
