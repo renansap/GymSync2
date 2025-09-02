@@ -527,19 +527,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete user (admin only)
-  app.delete('/api/admin/users/:userId', requireAdminAuth, async (req: any, res) => {
+  app.delete('/api/admin/users/:userId', requireAdminAuth, async (req: AuthenticatedRequest, res) => {
     try {
       const { userId } = req.params;
+      
+      console.log('🗑️ Tentando excluir usuário:', userId);
+      
+      // Verificar se o usuário existe primeiro
+      const user = await storage.getUser(userId);
+      if (!user) {
+        console.log('❌ Usuário não encontrado:', userId);
+        return res.status(404).json({ message: "Usuário não encontrado" });
+      }
+      
+      console.log('👤 Usuário encontrado:', user.email);
+      
+      // Verificar se não está tentando excluir a si mesmo (sessão de usuário logado)
+      if (req.user && req.user.id === userId) {
+        console.log('🚫 Tentativa de auto-exclusão bloqueada:', userId);
+        return res.status(400).json({ message: "Você não pode excluir sua própria conta" });
+      }
+      
+      // Verificar se não é o último admin (se for um admin)
+      if (user.userType === 'admin') {
+        const allUsers = await storage.getAllUsers();
+        const adminCount = allUsers.filter(u => u.userType === 'admin').length;
+        if (adminCount <= 1) {
+          console.log('🚫 Tentativa de excluir último admin bloqueada:', userId);
+          return res.status(400).json({ message: "Não é possível excluir o último administrador do sistema" });
+        }
+      }
+      
       const success = await storage.deleteUser(userId);
       
       if (!success) {
-        return res.status(404).json({ message: "User not found" });
+        console.log('❌ Falha ao excluir usuário:', userId);
+        return res.status(500).json({ message: "Falha ao excluir usuário" });
       }
       
+      console.log('✅ Usuário excluído com sucesso:', userId);
       res.status(204).send();
     } catch (error) {
-      console.error("Error deleting user:", error);
-      res.status(500).json({ message: "Failed to delete user" });
+      console.error("❌ Erro ao excluir usuário:", error);
+      res.status(500).json({ message: "Erro interno do servidor" });
     }
   });
 

@@ -64,12 +64,13 @@ export const setupPassport = (app: express.Application) => {
     try {
       const user = await storage.getUser(id);
       if (!user) {
-        return done(new Error('Usuário não encontrado'), null);
+        console.log('⚠️ Usuário não encontrado durante deserialização, limpando sessão:', id);
+        return done(null, false); // Limpa a sessão em vez de lançar erro
       }
       done(null, user);
     } catch (error) {
       console.error('Erro ao deserializar usuário:', error);
-      done(error, null);
+      done(null, false); // Limpa a sessão em caso de erro também
     }
   });
 
@@ -214,10 +215,13 @@ export const setupAuthRoutes = (app: express.Application) => {
   app.get('/api/auth/me', isAuthenticated, (req: AuthenticatedRequest, res) => {
     if (req.user) {
       res.json({
-        id: req.user.id,
-        email: req.user.email,
-        userType: req.user.userType,
-        name: req.user.name
+        user: {
+          id: req.user.id,
+          email: req.user.email,
+          userType: req.user.userType,
+          firstName: req.user.firstName || req.user.name?.split(' ')[0] || '',
+          lastName: req.user.lastName || req.user.name?.split(' ').slice(1).join(' ') || ''
+        }
       });
     } else {
       res.status(401).json({ message: "Não autenticado" });
@@ -248,9 +252,34 @@ export const setupAuthRoutes = (app: express.Application) => {
   // Registrar novo usuário
   app.post('/api/auth/register', async (req, res) => {
     try {
-      const { email, password, userType, name } = req.body;
+      const { 
+        firstName, 
+        lastName, 
+        email, 
+        password, 
+        userType, 
+        phone,
+        address,
+        city,
+        state,
+        zipCode,
+        birthDate,
+        height,
+        weight,
+        fitnessGoal,
+        fitnessLevel,
+        cref,
+        specializations,
+        membershipType,
+        membershipStart,
+        membershipEnd,
+        gymId,
+        medicalRestrictions,
+        notes,
+        isActive
+      } = req.body;
 
-      if (!email || !password || !userType) {
+      if (!firstName || !lastName || !email || !password || !userType) {
         return res.status(400).json({ message: "Todos os campos obrigatórios devem ser preenchidos" });
       }
 
@@ -263,12 +292,36 @@ export const setupAuthRoutes = (app: express.Application) => {
       // Hash da senha
       const hashedPassword = await bcrypt.hash(password, 10);
 
-      // Criar usuário
+      // Criar nome completo
+      const fullName = `${firstName} ${lastName}`.trim();
+
+      // Criar usuário com todos os campos
       const user = await storage.createUser({
         email,
         password: hashedPassword,
         userType,
-        name: name || email.split('@')[0]
+        firstName,
+        lastName,
+        name: fullName,
+        phone,
+        address,
+        city,
+        state,
+        zipCode,
+        birthDate: birthDate ? new Date(birthDate) : undefined,
+        height: height ? parseInt(height) : undefined,
+        weight: weight ? parseInt(weight) : undefined,
+        fitnessGoal,
+        fitnessLevel,
+        cref,
+        specializations: Array.isArray(specializations) ? specializations : [],
+        membershipType,
+        membershipStart: membershipStart ? new Date(membershipStart) : undefined,
+        membershipEnd: membershipEnd ? new Date(membershipEnd) : undefined,
+        gymId,
+        medicalRestrictions,
+        notes,
+        isActive: isActive !== undefined ? isActive : true
       });
 
       res.status(201).json({
@@ -277,7 +330,9 @@ export const setupAuthRoutes = (app: express.Application) => {
           id: user.id,
           email: user.email,
           userType: user.userType,
-          name: user.name
+          name: user.name,
+          firstName: user.firstName,
+          lastName: user.lastName
         }
       });
     } catch (error) {

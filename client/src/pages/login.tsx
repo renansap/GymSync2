@@ -60,16 +60,26 @@ export default function Login() {
 
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ Login bem-sucedido:', data);
+        
         toast({
           title: "Login realizado com sucesso!",
-          description: `Bem-vindo(a) de volta!`,
+          description: `Bem-vindo(a) de volta, ${data.user?.name || 'usuário'}!`,
         });
         
         // Redirecionar baseado no tipo de usuário
-        if (data.userType === 'aluno') {
+        const userType = data.user?.userType;
+        console.log('🎯 Redirecionando usuário do tipo:', userType);
+        
+        if (userType === 'aluno') {
+          console.log('📍 Redirecionando para /aluno');
           window.location.href = '/aluno';
-        } else if (data.userType === 'personal') {
+        } else if (userType === 'personal') {
+          console.log('📍 Redirecionando para /personal');
           window.location.href = '/personal';
+        } else {
+          console.log('📍 Tipo de usuário não reconhecido, redirecionando para home');
+          window.location.href = '/';
         }
       } else {
         const errorData = await response.json();

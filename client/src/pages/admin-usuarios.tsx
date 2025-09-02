@@ -98,10 +98,30 @@ export default function AdminUsuarios() {
   // Delete user mutation
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: string) => {
+      console.log('🗑️ Frontend: Tentando excluir usuário:', userId);
       const response = await apiRequest("DELETE", `/api/admin/users/${userId}`);
+      
+      console.log('📡 Response status:', response.status);
+      
+      if (response.status === 204) {
+        console.log('✅ Frontend: Usuário excluído com sucesso');
+        return { success: true };
+      }
+      
+      if (response.status === 404) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Usuário não encontrado");
+      }
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Erro ao excluir usuário");
+      }
+      
       return response.json();
     },
     onSuccess: () => {
+      console.log('✅ Frontend: Sucesso na mutation, atualizando queries');
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       setShowDeleteDialog(false);
       setUserToDelete(null);
@@ -111,6 +131,7 @@ export default function AdminUsuarios() {
       });
     },
     onError: (error: any) => {
+      console.error('❌ Frontend: Erro na mutation:', error);
       toast({
         title: "Erro ao excluir usuário",
         description: error.message || "Erro ao excluir usuário",
