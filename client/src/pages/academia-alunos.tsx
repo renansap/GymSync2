@@ -45,10 +45,7 @@ export default function AcademiaAlunos() {
 
   // Create aluno mutation
   const createAlunoMutation = useMutation({
-    mutationFn: (data: AlunoFormData) => apiRequest("/api/academia/alunos", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
+    mutationFn: (data: AlunoFormData) => apiRequest("POST", "/api/academia/alunos", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/academia/alunos"] });
       queryClient.invalidateQueries({ queryKey: ["/api/academia/dashboard"] });

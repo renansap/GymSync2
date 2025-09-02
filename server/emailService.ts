@@ -66,6 +66,7 @@ export class EmailService {
 
     return await this.sendEmail({
       to: userEmail,
+      from: "noreply@gymsync.com", // Default from address
       subject: subject,
       html: htmlContent,
     });
@@ -98,6 +99,7 @@ export class EmailService {
 
     return await this.sendEmail({
       to: userEmail,
+      from: "noreply@gymsync.com", // Default from address
       subject: `[TESTE] ${subject}`,
       html: htmlContent,
     });
@@ -125,6 +127,7 @@ export class EmailService {
 
     return await this.sendEmail({
       to: userEmail,
+      from: "noreply@gymsync.com", // Default from address
       subject: subject,
       html: htmlContent,
     });
@@ -152,6 +155,7 @@ export class EmailService {
 
     return await this.sendEmail({
       to: userEmail,
+      from: "noreply@gymsync.com", // Default from address
       subject: processedSubject,
       html: htmlContent,
     });

@@ -74,6 +74,8 @@ export interface IStorage {
   // Admin operations
   getAllUsers(): Promise<User[]>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByGoogleId(googleId: string): Promise<User | null>;
+  updateUserGoogleId(userId: string, googleId: string): Promise<User>;
   createUser(userData: any): Promise<User>;
   updateUser(userId: string, userData: any): Promise<User | undefined>;
   deleteUser(userId: string): Promise<boolean>;
@@ -446,6 +448,8 @@ export class MemStorage implements IStorage {
     return Array.from(this.users.values());
   }
 
+
+
   async createUser(userData: any): Promise<User> {
     const user: User = {
       id: randomUUID(),
@@ -474,11 +478,42 @@ export class MemStorage implements IStorage {
       medicalRestrictions: userData.medicalRestrictions ?? null,
       isActive: userData.isActive ?? true,
       notes: userData.notes ?? null,
+      password: userData.password ?? null,
+      passwordResetToken: userData.passwordResetToken ?? null,
+      passwordResetExpires: userData.passwordResetExpires ?? null,
+      emailVerified: userData.emailVerified ?? false,
+      emailVerificationToken: userData.emailVerificationToken ?? null,
+      lastLogin: userData.lastLogin ?? null,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
     this.users.set(user.id, user);
     return user;
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(u => u.email === email);
+  }
+
+  async getUserByGoogleId(googleId: string): Promise<User | null> {
+    const user = Array.from(this.users.values()).find(u => u.googleId === googleId);
+    return user || null;
+  }
+
+  async updateUserGoogleId(userId: string, googleId: string): Promise<User> {
+    const user = this.users.get(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const updatedUser: User = {
+      ...user,
+      googleId: googleId,
+      updatedAt: new Date(),
+    };
+
+    this.users.set(userId, updatedUser);
+    return updatedUser;
   }
 
   async updateUser(userId: string, userData: any): Promise<User | undefined> {
@@ -517,9 +552,7 @@ export class MemStorage implements IStorage {
     return updatedUser;
   }
 
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(u => u.email === email);
-  }
+
 
   async setUserPassword(userId: string, hashedPassword: string): Promise<User> {
     const user = this.users.get(userId);
@@ -644,6 +677,21 @@ export class MemStorage implements IStorage {
       inviteCode: this.generateInviteCode(),
       createdAt: new Date(),
       updatedAt: new Date(),
+      // Ensure all nullable fields are properly typed
+      cnpj: gymData.cnpj ?? null,
+      address: gymData.address ?? null,
+      email: gymData.email ?? null,
+      phone: gymData.phone ?? null,
+      city: gymData.city ?? null,
+      state: gymData.state ?? null,
+      zipCode: gymData.zipCode ?? null,
+      website: gymData.website ?? null,
+      socialMedia: gymData.socialMedia ?? null,
+      openingHours: gymData.openingHours ?? null,
+      maxMembers: gymData.maxMembers ?? null,
+      adminUserId: gymData.adminUserId ?? null,
+      logo: gymData.logo ?? null,
+      membershipPlans: gymData.membershipPlans ?? null,
     };
     this.gyms.set(gym.id, gym);
     return gym;
@@ -963,25 +1011,7 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async createUser(userData: any): Promise<User> {
-    if (!db) throw new Error("Database not available");
-    
-    // Ensure timestamps are valid Date objects
-    const userToInsert = {
-      ...userData,
-      id: randomUUID(),
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      // Convert string dates to Date objects if they exist
-      birthDate: userData.birthDate ? new Date(userData.birthDate) : null,
-      membershipStart: userData.membershipStart ? new Date(userData.membershipStart) : null,
-      membershipEnd: userData.membershipEnd ? new Date(userData.membershipEnd) : null,
-      lastLogin: userData.lastLogin ? new Date(userData.lastLogin) : null,
-    };
 
-    const [newUser] = await db.insert(users).values(userToInsert).returning();
-    return newUser;
-  }
 
   async updateUser(userId: string, userData: any): Promise<User | undefined> {
     if (!db) throw new Error("Database not available");
@@ -1027,11 +1057,7 @@ export class DatabaseStorage implements IStorage {
     return updatedUser;
   }
 
-  async getUserByEmail(email: string): Promise<User | undefined> {
-    if (!db) return undefined;
-    const [user] = await db.select().from(users).where(eq(users.email, email));
-    return user || undefined;
-  }
+
 
   async setUserPassword(userId: string, hashedPassword: string): Promise<User> {
     if (!db) throw new Error("Database not available");
@@ -1255,6 +1281,8 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+
+
   async createUser(userData: {
     email: string;
     password?: string;
@@ -1286,21 +1314,15 @@ export class DatabaseStorage implements IStorage {
   async updateUserGoogleId(userId: string, googleId: string): Promise<User> {
     if (!db) throw new Error("Database not available");
     
-    try {
-      const [user] = await db
-        .update(users)
-        .set({ 
-          googleId, 
-          updatedAt: new Date() 
-        })
-        .where(eq(users.id, userId))
-        .returning();
-      
-      return user;
-    } catch (error) {
-      console.error('Error updating user Google ID:', error);
-      throw error;
-    }
+    const [updatedUser] = await db
+      .update(users)
+      .set({ 
+        googleId: googleId, 
+        updatedAt: new Date() 
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return updatedUser;
   }
 }
 

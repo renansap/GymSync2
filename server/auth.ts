@@ -1,29 +1,13 @@
-import express, { Request, Response, NextFunction } from "express";
+import express, { Response, NextFunction } from "express";
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { storage } from "./storage";
+import { AuthenticatedRequest, User } from "./types";
+import { User as SchemaUser } from "@shared/schema";
 
 const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
-
-export interface User {
-  id: string;
-  email: string;
-  userType: "aluno" | "personal";
-  name?: string;
-  password?: string;
-  googleId?: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-export interface AuthenticatedRequest extends Request {
-  user?: User;
-  isAuthenticated(): boolean;
-  login(user: any, callback: (err: any) => void): void;
-  logout(callback: (err: any) => void): void;
-}
 
 // Middleware para verificar JWT
 export const authenticateJWT = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
@@ -37,7 +21,7 @@ export const authenticateJWT = (req: AuthenticatedRequest, res: Response, next: 
         return res.sendStatus(403);
       }
 
-      req.user = user as User;
+      req.user = user as SchemaUser;
       next();
     });
   } else {

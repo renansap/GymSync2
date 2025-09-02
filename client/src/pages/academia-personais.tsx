@@ -44,10 +44,7 @@ export default function AcademiaPersonais() {
 
   // Create personal mutation
   const createPersonalMutation = useMutation({
-    mutationFn: (data: PersonalFormData) => apiRequest("/api/academia/personais", {
-      method: "POST",
-      body: JSON.stringify(data),
-    }),
+    mutationFn: (data: PersonalFormData) => apiRequest("POST", "/api/academia/personais", data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/academia/personais"] });
       queryClient.invalidateQueries({ queryKey: ["/api/academia/dashboard"] });

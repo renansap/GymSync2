@@ -1,7 +1,8 @@
-import type { Express, Request, Response, NextFunction } from "express";
+import type { Express, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { isAuthenticated, AuthenticatedRequest } from "./auth";
+import { isAuthenticated } from "./auth";
+import { AuthenticatedRequest } from "./types";
 import { generateWorkout } from "./aiService";
 import { emailService } from "./emailService";
 import { insertWorkoutSchema, insertWorkoutSessionSchema, loginSchema, passwordResetSchema, insertEmailTemplateSchema } from "@shared/schema";
@@ -451,13 +452,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await storage.setPasswordResetToken(user.id, welcomeToken, expires);
       
       // Get welcome email template
-      const template = await storage.getEmailTemplateByType(userData.userType as string, 'welcome');
+      const userType = Array.isArray(userData.userType) ? userData.userType[0] : userData.userType;
+      const template = await storage.getEmailTemplateByType(userType as string, 'welcome');
       if (template) {
         const userName = `${userData.firstName} ${userData.lastName}`.trim();
         const emailSent = await emailService.sendWelcomeEmail(
           userData.email as string,
           userName,
-          userData.userType as string,
+          userType as string,
           welcomeToken,
           template
         );
@@ -505,7 +507,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userData = updateUserSchema.parse(req.body);
       
       // Validate user type if provided
-      if (userData.userType && !['aluno', 'personal', 'academia'].includes(userData.userType as string)) {
+      const userTypeToCheck = Array.isArray(userData.userType) ? userData.userType[0] : userData.userType;
+      if (userTypeToCheck && !['aluno', 'personal', 'academia'].includes(userTypeToCheck as string)) {
         return res.status(400).json({ message: "Invalid user type" });
       }
       
