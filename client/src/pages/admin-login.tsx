@@ -17,19 +17,8 @@ export default function AdminLogin() {
   // Admin login mutation
   const loginMutation = useMutation({
     mutationFn: async (credentials: { username: string; password: string }) => {
-      const response = await fetch("/api/admin/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(credentials),
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || "Login failed");
-      }
-      
+      // Usa apiRequest para garantir credentials: 'include' e tratamento consistente
+      const response = await apiRequest("POST", "/api/admin/login", credentials);
       return await response.json();
     },
     onSuccess: () => {

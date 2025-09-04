@@ -10,6 +10,7 @@ interface AuthUser {
   firstName: string;
   lastName: string;
   userType: string;
+  gymId?: string; // Adicionar gymId para multi-tenant
 }
 
 interface AuthContextType {

@@ -1,7 +1,8 @@
 import OpenAI from "openai";
+import { env } from './config/env';
 
 const openai = new OpenAI({ 
-  apiKey: process.env.OPENAI_API_KEY || process.env.OPENAI_API_KEY_ENV_VAR || "default_key"
+  apiKey: env.OPENAI_API_KEY || "sk-no-key-set"
 });
 
 export interface WorkoutRequest {

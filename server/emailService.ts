@@ -1,11 +1,14 @@
 import sgMail from '@sendgrid/mail';
-import { randomBytes } from 'crypto';
+import { env } from './config/env';
+import { generateSecureToken, hashToken } from './utils/crypto';
 
-if (!process.env.SENDGRID_API_KEY) {
-  throw new Error("SENDGRID_API_KEY environment variable must be set");
+sgMail.setApiKey(env.SENDGRID_API_KEY);
+
+// Interface para token de reset
+interface ResetTokenData {
+  token: string;
+  hash: string;
 }
-
-sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
 interface EmailData {
   to: string;
@@ -37,8 +40,10 @@ export class EmailService {
     }
   }
 
-  generatePasswordResetToken(): string {
-    return randomBytes(32).toString('hex');
+  generatePasswordResetToken(): ResetTokenData {
+    const token = generateSecureToken(32);
+    const hash = hashToken(token);
+    return { token, hash };
   }
 
   async sendWelcomeEmail(

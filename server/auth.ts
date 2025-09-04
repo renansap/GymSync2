@@ -6,8 +6,10 @@ import jwt from "jsonwebtoken";
 import { storage } from "./storage";
 import { AuthenticatedRequest, User } from "./types";
 import { User as SchemaUser } from "@shared/schema";
+import { authLimiter, createAccountLimiter, passwordResetLimiter } from './middleware/rateLimiter';
+import { env } from './config/env';
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-secret-key";
+const JWT_SECRET = env.JWT_SECRET || env.SESSION_SECRET; // Usa SESSION_SECRET como fallback
 
 // Middleware para verificar JWT
 export const authenticateJWT = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
@@ -106,7 +108,7 @@ export const setupPassport = (app: express.Application) => {
 // Rotas de autenticação
 export const setupAuthRoutes = (app: express.Application) => {
   // Login tradicional
-  app.post('/api/auth/login', async (req: AuthenticatedRequest, res) => {
+  app.post('/api/auth/login', authLimiter, async (req: AuthenticatedRequest, res) => {
     try {
       const { email, password, userType } = req.body;
 
@@ -234,7 +236,7 @@ export const setupAuthRoutes = (app: express.Application) => {
   );
 
   // Registrar novo usuário
-  app.post('/api/auth/register', async (req, res) => {
+  app.post('/api/auth/register', createAccountLimiter, async (req, res) => {
     try {
       const { 
         firstName, 

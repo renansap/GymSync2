@@ -3,19 +3,32 @@ import session from "express-session";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { setupPassport, setupAuthRoutes } from "./auth";
+import { setupAuth as setupReplitAuth } from "./replitAuth";
+import { env, getPort, isProduction, isDevelopment } from "./config/env";
+import { generalLimiter } from "./middleware/rateLimiter";
+import { helmetConfig, corsConfig, securityHeaders } from "./middleware/security";
 import "./db"; // Initialize database connection
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+
+// Apply security middlewares
+app.use(helmetConfig);
+app.use(corsConfig);
+app.use(securityHeaders);
+
+// Apply general rate limiting only to API routes (avoid blocking HTML/Vite assets)
+app.use('/api', generalLimiter);
+
+app.use(express.json({ limit: '10mb' })); // Limitar tamanho do body
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 
 // Configurar sessões
 app.use(session({
-  secret: process.env.SESSION_SECRET || 'your-secret-key-change-this',
+  secret: env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: process.env.NODE_ENV === 'production',
+    secure: isProduction,
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000, // 24 horas
     sameSite: 'lax'
@@ -60,6 +73,18 @@ app.use((req, res, next) => {
   setupPassport(app);
   console.log('📝 Configurando rotas de autenticação...');
   setupAuthRoutes(app);
+  // Setup Replit Auth only if environment variables are available
+  if (env.REPLIT_DOMAINS && env.REPL_ID) {
+    console.log('📝 Configurando Replit Auth...');
+    try {
+      await setupReplitAuth(app);
+      console.log('✅ Replit Auth configurado');
+    } catch (error) {
+      console.warn('⚠️ Falha ao configurar Replit Auth:', error);
+    }
+  } else {
+    console.log('ℹ️ Replit Auth desabilitado (variáveis de ambiente não encontradas)');
+  }
   console.log('✅ Authentication setup completed');
   console.log('🔍 Verificando configuração de sessões...');
   console.log('📋 Session middleware configurado:', !!app._router.stack.find((layer: any) => layer.name === 'session'));
@@ -77,7 +102,7 @@ app.use((req, res, next) => {
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
+  if (isDevelopment) {
     await setupVite(app, server);
   } else {
     serveStatic(app);
@@ -87,7 +112,7 @@ app.use((req, res, next) => {
   // Other ports are firewalled. Default to 5000 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
+  const port = getPort();
   server.listen({
     port,
     host: "0.0.0.0",

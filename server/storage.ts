@@ -348,8 +348,10 @@ export class MemStorage implements IStorage {
   }
 
   async getAcademiaAlunos(gymId: string): Promise<User[]> {
-    // Return all users with userType 'aluno'
-    return Array.from(this.users.values()).filter(u => u.userType === 'aluno');
+    // Return all users with userType 'aluno' and matching gymId
+    return Array.from(this.users.values()).filter(u => 
+      u.userType === 'aluno' && u.gymId === gymId
+    );
   }
 
   async createAcademiaAluno(data: any): Promise<User> {
@@ -360,6 +362,7 @@ export class MemStorage implements IStorage {
       lastName: data.lastName || null,
       profileImageUrl: null,
       userType: 'aluno',
+      gymId: data.gymId, // Adicionar gymId ao aluno
       birthDate: data.birthDate ? new Date(data.birthDate) : null,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -369,7 +372,9 @@ export class MemStorage implements IStorage {
   }
 
   async getAcademiaPersonais(gymId: string): Promise<User[]> {
-    return Array.from(this.users.values()).filter(u => u.userType === 'personal');
+    return Array.from(this.users.values()).filter(u => 
+      u.userType === 'personal' && u.gymId === gymId
+    );
   }
 
   async createAcademiaPersonal(data: any): Promise<User> {
@@ -380,6 +385,7 @@ export class MemStorage implements IStorage {
       lastName: data.lastName || null,
       profileImageUrl: null,
       userType: 'personal',
+      gymId: data.gymId, // Adicionar gymId ao personal
       birthDate: data.birthDate ? new Date(data.birthDate) : null,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -1199,16 +1205,48 @@ export class DatabaseStorage implements IStorage {
     
     // Generate unique invite code
     const inviteCode = this.generateInviteCode();
+    const gymId = randomUUID();
     
     const gymToInsert = {
       ...gymData,
-      id: randomUUID(),
+      id: gymId,
       inviteCode,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
 
     const [newGym] = await db.insert(gyms).values(gymToInsert).returning();
+    
+    // Criar usuário administrador da academia se email foi fornecido
+    if (gymData.email) {
+      const adminUser = {
+        id: randomUUID(),
+        email: gymData.email,
+        firstName: gymData.name?.split(' ')[0] || 'Academia',
+        lastName: gymData.name?.split(' ').slice(1).join(' ') || 'Admin',
+        name: gymData.name,
+        userType: 'academia',
+        gymId: gymId, // Associar à academia criada
+        isActive: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
+      
+      try {
+        await db.insert(users).values(adminUser);
+        
+        // Atualizar academia com o adminUserId
+        await db
+          .update(gyms)
+          .set({ adminUserId: adminUser.id })
+          .where(eq(gyms.id, gymId));
+          
+      } catch (error) {
+        console.warn('Falha ao criar usuário admin da academia:', error);
+        // Não falhar a criação da academia se não conseguir criar o usuário
+      }
+    }
+    
     return newGym;
   }
 

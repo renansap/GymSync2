@@ -7,6 +7,109 @@ import { generateWorkout } from "./aiService";
 import { emailService } from "./emailService";
 import { insertWorkoutSchema, insertWorkoutSessionSchema, loginSchema, passwordResetSchema, insertEmailTemplateSchema } from "@shared/schema";
 import bcrypt from 'bcrypt';
+import { passwordResetLimiter, aiLimiter } from './middleware/rateLimiter';
+
+// Function to ensure default email templates exist
+async function ensureDefaultEmailTemplates() {
+  const defaultTemplates = [
+    {
+      userType: 'aluno',
+      templateType: 'welcome',
+      subject: 'Bem-vindo ao GymSync, {{nome}}!',
+      content: `
+        <h2>Bem-vindo ao GymSync!</h2>
+        <p>Olá {{nome}},</p>
+        <p>Parabéns! Sua conta de aluno foi criada com sucesso no GymSync.</p>
+        <p>Você agora tem acesso à nossa plataforma de treinos personalizados com inteligência artificial.</p>
+        <p><strong>Suas credenciais:</strong></p>
+        <ul>
+          <li>Email: {{email}}</li>
+          <li>Tipo de conta: {{tipo}}</li>
+        </ul>
+        <p>Para definir sua senha e começar a usar o sistema, clique no link abaixo:</p>
+        <p><a href="{{link_senha}}" class="button">Definir Minha Senha</a></p>
+        <p>Com o GymSync, você terá:</p>
+        <ul>
+          <li>🏋️ Treinos personalizados com IA</li>
+          <li>📊 Acompanhamento de progresso</li>
+          <li>🎯 Metas e objetivos</li>
+          <li>📱 Acesso via app e web</li>
+        </ul>
+        <p>Estamos ansiosos para ver sua jornada fitness começar!</p>
+      `
+    },
+    {
+      userType: 'personal',
+      templateType: 'welcome',
+      subject: 'Bem-vindo à equipe GymSync, {{nome}}!',
+      content: `
+        <h2>Bem-vindo à nossa equipe!</h2>
+        <p>Olá {{nome}},</p>
+        <p>É com grande prazer que te damos as boas-vindas como Personal Trainer no GymSync!</p>
+        <p>Sua conta foi criada com sucesso e você agora faz parte da nossa comunidade de profissionais fitness.</p>
+        <p><strong>Suas credenciais:</strong></p>
+        <ul>
+          <li>Email: {{email}}</li>
+          <li>Tipo de conta: {{tipo}}</li>
+        </ul>
+        <p>Para definir sua senha e acessar o painel do personal trainer, clique no link abaixo:</p>
+        <p><a href="{{link_senha}}" class="button">Definir Minha Senha</a></p>
+        <p>Como Personal Trainer no GymSync, você terá acesso a:</p>
+        <ul>
+          <li>👥 Gestão de alunos</li>
+          <li>📋 Criação de treinos personalizados</li>
+          <li>📈 Relatórios de progresso</li>
+          <li>🤖 Ferramentas com IA</li>
+          <li>📊 Dashboard analítico</li>
+        </ul>
+        <p>Estamos empolgados para trabalhar com você!</p>
+      `
+    },
+    {
+      userType: 'academia',
+      templateType: 'welcome',
+      subject: 'Sua academia está ativa no GymSync!',
+      content: `
+        <h2>Academia cadastrada com sucesso!</h2>
+        <p>Olá,</p>
+        <p>Parabéns! Sua academia foi cadastrada com sucesso no GymSync.</p>
+        <p>Você agora tem acesso à nossa plataforma multi-tenant para gestão completa da sua academia.</p>
+        <p><strong>Suas credenciais de administrador:</strong></p>
+        <ul>
+          <li>Email: {{email}}</li>
+          <li>Tipo de conta: {{tipo}}</li>
+        </ul>
+        <p>Para definir sua senha e acessar o painel administrativo, clique no link abaixo:</p>
+        <p><a href="{{link_senha}}" class="button">Acessar Painel da Academia</a></p>
+        <p>Com o GymSync, sua academia terá:</p>
+        <ul>
+          <li>🏢 Gestão multi-tenant</li>
+          <li>👥 Controle de alunos e personal trainers</li>
+          <li>📊 Dashboard com métricas em tempo real</li>
+          <li>💰 Gestão financeira</li>
+          <li>📱 Aplicativo para seus clientes</li>
+          <li>🤖 Inteligência artificial integrada</li>
+        </ul>
+        <p>Bem-vindo à revolução fitness!</p>
+      `
+    }
+  ];
+
+  for (const template of defaultTemplates) {
+    try {
+      const existing = await storage.getEmailTemplateByType(template.userType, template.templateType);
+      if (!existing) {
+        await storage.createEmailTemplate({
+          ...template,
+          isActive: true
+        });
+        console.log(`✅ Created default email template: ${template.userType}/${template.templateType}`);
+      }
+    } catch (error) {
+      console.error(`Failed to create default template ${template.userType}/${template.templateType}:`, error);
+    }
+  }
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
@@ -81,7 +184,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // AI Workout Generation
-  app.post('/api/ia/treino', isAuthenticated, async (req: AuthenticatedRequest, res) => {
+  app.post('/api/ia/treino', isAuthenticated, aiLimiter, async (req: AuthenticatedRequest, res) => {
     try {
       const { objetivo, nivel, diasPorSemana, historico } = req.body;
       
@@ -251,7 +354,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (!user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
-    // For now, allow all authenticated users to test - in production, check user role
+    
+    // Verificar se o usuário é do tipo 'academia'
+    if (user.userType !== 'academia') {
+      return res.status(403).json({ message: "Acesso restrito a academias" });
+    }
+    
+    // Para academias, o gymId é o próprio ID do usuário
+    // ou se tiver gymId específico, usar esse
+    const gymId = user.gymId || user.id;
+    if (!gymId) {
+      return res.status(400).json({ message: "Academia não identificada" });
+    }
+    
+    // Adicionar gymId ao request para uso nas rotas
+    (req as any).gymId = gymId;
     next();
   };
 
@@ -295,6 +412,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.redirect('/');
   });
 
+  // Nota: A rota /api/logout é agora definida em replitAuth.ts para melhor integração
+
   // Admin check route
   app.get('/api/admin/check', (req, res) => {
     res.json({ authenticated: !!(req.session as any)?.adminAuthenticated });
@@ -303,10 +422,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Academia dashboard
   app.get('/api/academia/dashboard', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
     try {
-      const gymId = req.user?.id;
-      if (!gymId) {
-        return res.status(401).json({ message: "Usuário não autenticado" });
-      }
+      const gymId = (req as any).gymId;
       const dashboard = await storage.getAcademiaDashboard(gymId);
       res.json(dashboard);
     } catch (error) {
@@ -318,10 +434,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Academia alunos
   app.get('/api/academia/alunos', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
     try {
-      const gymId = req.user?.id;
-      if (!gymId) {
-        return res.status(401).json({ message: "Usuário não autenticado" });
-      }
+      const gymId = (req as any).gymId;
       const alunos = await storage.getAcademiaAlunos(gymId);
       res.json(alunos);
     } catch (error) {
@@ -332,11 +445,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/academia/alunos', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
     try {
-      const gymId = req.user?.id;
-      if (!gymId) {
-        return res.status(401).json({ message: "Usuário não autenticado" });
+      const gymId = (req as any).gymId;
+      
+      // Check if email already exists
+      const existingUser = await storage.getUserByEmail(req.body.email);
+      if (existingUser) {
+        return res.status(409).json({ message: "Email já está em uso" });
       }
+      
       const aluno = await storage.createAcademiaAluno({ ...req.body, gymId });
+      
+      // Send welcome email
+      try {
+        const welcomeToken = emailService.generatePasswordResetToken();
+        const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+        
+        await storage.setPasswordResetToken(aluno.id, welcomeToken, expires);
+        
+        // Get welcome email template
+        const template = await storage.getEmailTemplateByType('aluno', 'welcome');
+        if (template) {
+          const emailSent = await emailService.sendWelcomeEmail(
+            aluno.email!,
+            aluno.name!,
+            'aluno',
+            welcomeToken,
+            template
+          );
+          
+          if (!emailSent) {
+            console.warn(`Failed to send welcome email to ${aluno.email}`);
+          } else {
+            console.log(`✅ Welcome email sent to new aluno: ${aluno.email}`);
+          }
+        } else {
+          console.warn('No welcome template found for aluno');
+        }
+      } catch (emailError) {
+        console.error('Error sending welcome email:', emailError);
+        // Don't fail the user creation if email fails
+      }
+      
       res.json(aluno);
     } catch (error) {
       console.error("Error creating aluno:", error);
@@ -347,10 +496,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Academia personais
   app.get('/api/academia/personais', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
     try {
-      const gymId = req.user?.id;
-      if (!gymId) {
-        return res.status(401).json({ message: "Usuário não autenticado" });
-      }
+      const gymId = (req as any).gymId;
       const personais = await storage.getAcademiaPersonais(gymId);
       res.json(personais);
     } catch (error) {
@@ -361,11 +507,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/academia/personais', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
     try {
-      const gymId = req.user?.id;
-      if (!gymId) {
-        return res.status(401).json({ message: "Usuário não autenticado" });
+      const gymId = (req as any).gymId;
+      
+      // Check if email already exists
+      const existingUser = await storage.getUserByEmail(req.body.email);
+      if (existingUser) {
+        return res.status(409).json({ message: "Email já está em uso" });
       }
+      
       const personal = await storage.createAcademiaPersonal({ ...req.body, gymId });
+      
+      // Send welcome email
+      try {
+        const welcomeToken = emailService.generatePasswordResetToken();
+        const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+        
+        await storage.setPasswordResetToken(personal.id, welcomeToken, expires);
+        
+        // Get welcome email template
+        const template = await storage.getEmailTemplateByType('personal', 'welcome');
+        if (template) {
+          const emailSent = await emailService.sendWelcomeEmail(
+            personal.email!,
+            personal.name!,
+            'personal',
+            welcomeToken,
+            template
+          );
+          
+          if (!emailSent) {
+            console.warn(`Failed to send welcome email to ${personal.email}`);
+          } else {
+            console.log(`✅ Welcome email sent to new personal: ${personal.email}`);
+          }
+        } else {
+          console.warn('No welcome template found for personal');
+        }
+      } catch (emailError) {
+        console.error('Error sending welcome email:', emailError);
+        // Don't fail the user creation if email fails
+      }
+      
       res.json(personal);
     } catch (error) {
       console.error("Error creating personal:", error);
@@ -376,10 +558,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Academia engajamento
   app.get('/api/academia/engajamento', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
     try {
-      const gymId = req.user?.id;
-      if (!gymId) {
-        return res.status(401).json({ message: "Usuário não autenticado" });
-      }
+      const gymId = (req as any).gymId;
       const engajamento = await storage.getAcademiaEngajamento(gymId);
       res.json(engajamento);
     } catch (error) {
@@ -391,10 +570,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Academia aniversariantes
   app.get('/api/academia/aniversariantes', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
     try {
-      const gymId = req.user?.id;
-      if (!gymId) {
-        return res.status(401).json({ message: "Usuário não autenticado" });
-      }
+      const gymId = (req as any).gymId;
       const aniversariantes = await storage.getAcademiaAniversariantes(gymId);
       res.json(aniversariantes);
     } catch (error) {
@@ -406,10 +582,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Academia renovações
   app.get('/api/academia/renovacoes', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
     try {
-      const gymId = req.user?.id;
-      if (!gymId) {
-        return res.status(401).json({ message: "Usuário não autenticado" });
-      }
+      const gymId = (req as any).gymId;
       const renovacoes = await storage.getAcademiaRenovacoes(gymId);
       res.json(renovacoes);
     } catch (error) {
@@ -661,7 +834,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           email: user.email, 
           firstName: user.firstName, 
           lastName: user.lastName, 
-          userType: user.userType 
+          userType: user.userType,
+          gymId: user.gymId // Incluir gymId para multi-tenant
         } 
       });
     } catch (error) {
@@ -671,7 +845,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Password setup/reset routes
-  app.post('/api/auth/definir-senha', async (req, res) => {
+  app.post('/api/auth/definir-senha', passwordResetLimiter, async (req, res) => {
     try {
       const { token, password, confirmPassword } = passwordResetSchema.parse(req.body);
       
@@ -696,7 +870,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post('/api/auth/solicitar-reset', async (req, res) => {
+  app.post('/api/auth/solicitar-reset', passwordResetLimiter, async (req, res) => {
     try {
       const { email } = req.body;
       
@@ -959,6 +1133,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = insertGymSchema.parse(req.body);
       
       const gym = await storage.createGym(validatedData);
+      
+      // Send welcome email to the gym admin if email is provided
+      if (validatedData.email) {
+        try {
+          // Find the admin user that was created
+          const adminUser = await storage.getUserByEmail(validatedData.email);
+          if (adminUser) {
+            const welcomeToken = emailService.generatePasswordResetToken();
+            const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+            
+            await storage.setPasswordResetToken(adminUser.id, welcomeToken, expires);
+            
+            // Get welcome email template
+            const template = await storage.getEmailTemplateByType('academia', 'welcome');
+            if (template) {
+              const emailSent = await emailService.sendWelcomeEmail(
+                adminUser.email!,
+                adminUser.name || validatedData.name,
+                'academia',
+                welcomeToken,
+                template
+              );
+              
+              if (!emailSent) {
+                console.warn(`Failed to send welcome email to ${adminUser.email}`);
+              } else {
+                console.log(`✅ Welcome email sent to new academia admin: ${adminUser.email}`);
+              }
+            } else {
+              console.warn('No welcome template found for academia');
+            }
+          }
+        } catch (emailError) {
+          console.error('Error sending welcome email to gym admin:', emailError);
+          // Don't fail the gym creation if email fails
+        }
+      }
+      
       res.status(201).json(gym);
     } catch (error) {
       console.error("Error creating gym:", error);
@@ -1103,6 +1315,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+
+
   const httpServer = createServer(app);
+  
+  // Ensure default email templates exist after all routes are set up
+  setTimeout(async () => {
+    try {
+      // Wait for storage to be fully initialized
+      let attempts = 0;
+      while (!storage && attempts < 10) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        attempts++;
+      }
+      
+      if (!storage) {
+        console.error('❌ Storage not available for email templates initialization');
+        return;
+      }
+      
+      await ensureDefaultEmailTemplates();
+      console.log('🎯 Default email templates initialization completed');
+    } catch (error) {
+      console.error('❌ Failed to initialize default email templates:', error);
+    }
+  }, 3000); // Wait 3 seconds
+  
   return httpServer;
 }

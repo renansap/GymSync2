@@ -1,0 +1,28 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@supabase/mcp-server-supabase@latest",
+        "--project-ref=hwolieecmpalvjnbsrydb"
+      ],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh3b2llZWNtcGFsdmpuYnNyeWRiIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NjMxOTM4NywiZXhwIjoyMDcxODk1Mzg3fQ.g13bNGLCsx-1UvOq-WxJP9SWSbxx14vlfFWRyFX1fwQ"
+      }
+    },
+    "sequential-thinking": {
+      "type": "http",
+      "url": "https://server.smithery.ai/@smithery-ai/server-sequential-thinking/mcp?api_key=5b4163a9-251f-4be0-b361-2332f778c3f8&profile=social-panda-pHbahP",
+      "headers": {}
+    },
+    "browser-tools": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@agentdeskai/browser-tools-mcp@1.2.0"
+      ],
+      "enabled": true
+    }
+  }
+}

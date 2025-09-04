@@ -11,16 +11,18 @@ import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
 import MemoryStore from "memorystore";
 
-if (!process.env.REPLIT_DOMAINS) {
-  throw new Error("Environment variable REPLIT_DOMAINS not provided");
-}
+import { env } from './config/env';
+
+// Check for required environment variables but don't throw on import
+const REPLIT_DOMAINS = env.REPLIT_DOMAINS;
+const REPL_ID = env.REPL_ID;
 
 const getOidcConfig = memoize(
   async () => {
     console.log('🔧 Getting OIDC config');
     const config = await client.discovery(
-      new URL(process.env.ISSUER_URL ?? "https://replit.com/oidc"),
-      process.env.REPL_ID!
+      new URL(env.ISSUER_URL ?? "https://replit.com/oidc"),
+      REPL_ID!
     );
     console.log('✅ OIDC config retrieved');
     return config;
@@ -40,7 +42,7 @@ export function getSession() {
   console.log("🔧 Using memory store for sessions");
   
   const sessionConfig = session({
-    secret: process.env.SESSION_SECRET || "default-secret-key-for-development",
+    secret: env.SESSION_SECRET,
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
@@ -132,6 +134,12 @@ async function upsertUser(
 
 export async function setupAuth(app: Express) {
   console.log('🔧 Setting up authentication');
+  
+  // Check for required environment variables
+  if (!REPLIT_DOMAINS || !REPL_ID) {
+    throw new Error("Environment variables REPLIT_DOMAINS and REPL_ID are required for Replit Auth");
+  }
+  
   app.set("trust proxy", 1);
   app.use(getSession());
   app.use(passport.initialize());
@@ -189,7 +197,7 @@ export async function setupAuth(app: Express) {
   };
 
   // Get domains from environment variable
-  const domains = process.env.REPLIT_DOMAINS!.split(",");
+      const domains = REPLIT_DOMAINS!.split(",");
   
   // Add localhost for development if not already present
   if (!domains.includes('localhost')) {
@@ -255,19 +263,64 @@ export async function setupAuth(app: Express) {
   });
 
   app.get("/api/logout", (req, res) => {
-    console.log('🚪 Logout route accessed');
-    req.logout(() => {
-      // Primeiro redirecionar para o logout do Replit
-      const replitLogoutUrl = client.buildEndSessionUrl(config, {
-        client_id: process.env.REPL_ID!,
-        post_logout_redirect_uri: `${req.protocol}://${req.hostname}`,
-      }).href;
-      
-      console.log('🔄 Redirecionando para logout do Replit:', replitLogoutUrl);
-      
-      // Redirecionar para o portal principal após o logout
-      res.redirect('/');
-    });
+    console.log('🚪 Replit Auth logout route accessed');
+    
+    // Função para finalizar logout e redirecionar
+    const finishLogout = () => {
+      console.log('✅ Logout realizado, redirecionando para multi-login');
+      res.redirect('/multi-login');
+    };
+    
+    // Tentar usar o método logout do Passport se disponível
+    if (req.logout && typeof req.logout === 'function') {
+      req.logout((err) => {
+        if (err) {
+          console.error("Erro no logout do Passport:", err);
+        }
+        
+        // Se temos Replit Auth configurado E estamos em produção, fazer logout completo
+        if (REPL_ID && client && !req.hostname.includes('localhost')) {
+          try {
+            const replitLogoutUrl = client.buildEndSessionUrl(config, {
+              client_id: REPL_ID!,
+              post_logout_redirect_uri: `${req.protocol}://${req.hostname}/multi-login`,
+            }).href;
+            
+            console.log('🔄 Redirecionando para logout do Replit (produção):', replitLogoutUrl);
+            res.redirect(replitLogoutUrl);
+            return;
+          } catch (replitError) {
+            console.error("Erro no logout do Replit:", replitError);
+          }
+        } else if (req.hostname.includes('localhost')) {
+          console.log('🏠 Logout local - pulando Replit Auth externo');
+        }
+        
+        // Fallback: limpar sessão e redirecionar
+        if (req.session && req.session.destroy) {
+          req.session.destroy((destroyErr) => {
+            if (destroyErr) {
+              console.error("Erro ao destruir sessão:", destroyErr);
+            }
+            finishLogout();
+          });
+        } else {
+          finishLogout();
+        }
+      });
+    } else {
+      // Se não há método logout, apenas limpar sessão
+      if (req.session && req.session.destroy) {
+        req.session.destroy((err) => {
+          if (err) {
+            console.error("Erro ao destruir sessão:", err);
+          }
+          finishLogout();
+        });
+      } else {
+        finishLogout();
+      }
+    }
   });
   
   console.log('✅ Authentication setup complete');
