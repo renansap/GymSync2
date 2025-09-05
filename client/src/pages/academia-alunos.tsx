@@ -37,10 +37,14 @@ export default function AcademiaAlunos() {
     },
   });
 
+  // Preview mode via ?preview=1
+  const isPreview = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('preview') === '1';
+  const gymId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('gymId') : null;
+
   // Fetch alunos
   const { data: alunos = [], isLoading: isLoadingAlunos } = useQuery<User[]>({
-    queryKey: ["/api/academia/alunos"],
-    enabled: isAuthenticated,
+    queryKey: isPreview && gymId ? ["/api/preview/gym", gymId, "alunos"] : ["/api/academia/alunos"],
+    enabled: isAuthenticated || (isPreview && !!gymId),
   });
 
   // Create aluno mutation

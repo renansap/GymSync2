@@ -12,12 +12,13 @@ import { User } from "@shared/schema";
 export default function AcademiaAniversariantes() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
+  const isPreview = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('preview') === '1';
   const [searchTerm, setSearchTerm] = useState("");
 
   // Fetch birthday members
   const { data: aniversariantes = [], isLoading: isLoadingAniversariantes } = useQuery<User[]>({
     queryKey: ["/api/academia/aniversariantes"],
-    enabled: isAuthenticated,
+    enabled: isAuthenticated || isPreview,
   });
 
   // Filter users based on search

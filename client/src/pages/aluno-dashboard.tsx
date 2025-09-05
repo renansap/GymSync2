@@ -24,8 +24,12 @@ export default function AlunoDashboard() {
   const [nivel, setNivel] = useState("iniciante");
   const [currentSet, setCurrentSet] = useState({ peso: "", reps: "" });
 
+  // Preview mode via ?preview=1
+  const isPreview = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('preview') === '1';
+
   // Redirect if not authenticated
   useEffect(() => {
+    if (isPreview) return;
     if (!isLoading && !isAuthenticated) {
       toast({
         title: "Unauthorized",
@@ -37,24 +41,24 @@ export default function AlunoDashboard() {
       }, 500);
       return;
     }
-  }, [isAuthenticated, isLoading, toast]);
+  }, [isAuthenticated, isLoading, toast, isPreview]);
 
   // Fetch workouts
   const { data: workouts = [] } = useQuery<Workout[]>({
     queryKey: ["/api/workouts"],
-    enabled: isAuthenticated,
+    enabled: isAuthenticated || isPreview,
   });
 
   // Fetch workout sessions
   const { data: sessions = [] } = useQuery<WorkoutSession[]>({
     queryKey: ["/api/workout-sessions"],
-    enabled: isAuthenticated,
+    enabled: isAuthenticated || isPreview,
   });
 
   // Fetch active session
   const { data: activeSession, refetch: refetchActiveSession } = useQuery<WorkoutSession | null>({
     queryKey: ["/api/workout-sessions/active"],
-    enabled: isAuthenticated,
+    enabled: isAuthenticated || isPreview,
   });
 
   // Generate AI workout mutation

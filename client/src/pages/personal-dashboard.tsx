@@ -15,8 +15,12 @@ export default function PersonalDashboard() {
     isLoading: boolean;
   };
 
+  // Preview mode via ?preview=1
+  const isPreview = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('preview') === '1';
+
   // Redirect if not authenticated
   useEffect(() => {
+    if (isPreview) return;
     if (!isLoading && !isAuthenticated) {
       toast({
         title: "Unauthorized",
@@ -28,12 +32,12 @@ export default function PersonalDashboard() {
       }, 500);
       return;
     }
-  }, [isAuthenticated, isLoading, toast]);
+  }, [isAuthenticated, isLoading, toast, isPreview]);
 
   // Fetch clients
   const { data: clients = [] } = useQuery<User[]>({
     queryKey: ["/api/personal/clients"],
-    enabled: isAuthenticated,
+    enabled: isAuthenticated || isPreview,
   });
 
   if (isLoading) {

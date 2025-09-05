@@ -36,10 +36,14 @@ export default function AcademiaPersonais() {
     },
   });
 
+  // Preview mode via ?preview=1
+  const isPreview = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('preview') === '1';
+  const gymId = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('gymId') : null;
+
   // Fetch personais
   const { data: personais = [], isLoading: isLoadingPersonais } = useQuery<User[]>({
-    queryKey: ["/api/academia/personais"],
-    enabled: isAuthenticated,
+    queryKey: isPreview && gymId ? ["/api/preview/gym", gymId, "personais"] : ["/api/academia/personais"],
+    enabled: isAuthenticated || (isPreview && !!gymId),
   });
 
   // Create personal mutation

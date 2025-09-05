@@ -210,6 +210,30 @@ export const gymMembers = pgTable("gym_members", {
   startDate: timestamp("start_date").notNull(),
   endDate: timestamp("end_date"),
   isActive: boolean("is_active").default(true),
+  // Novo: plano associado ao membro (opcional por compatibilidade)
+  planId: varchar("plan_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+// Novas tabelas para planos e assinaturas
+export const gymPlans = pgTable("gym_plans", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  gymId: varchar("gym_id").notNull().references(() => gyms.id),
+  name: varchar("name").notNull(),
+  price: integer("price").default(0),
+  durationDays: integer("duration_days").notNull(),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const gymMemberSubscriptions = pgTable("gym_member_subscriptions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  gymId: varchar("gym_id").notNull().references(() => gyms.id),
+  memberId: varchar("member_id").notNull().references(() => users.id),
+  planId: varchar("plan_id").notNull().references(() => gymPlans.id),
+  startDate: timestamp("start_date").notNull(),
+  endDate: timestamp("end_date"),
+  status: varchar("status").notNull().default("active"),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -361,6 +385,7 @@ export const usersRelations = relations(users, ({ one }) => ({
 export const gymsRelations = relations(gyms, ({ many }) => ({
   users: many(users),
   members: many(gymMembers),
+  plans: many(gymPlans),
 }));
 
 export const gymMembersRelations = relations(gymMembers, ({ one }) => ({
@@ -371,5 +396,28 @@ export const gymMembersRelations = relations(gymMembers, ({ one }) => ({
   member: one(users, {
     fields: [gymMembers.memberId],
     references: [users.id],
+  }),
+}));
+
+export const gymPlansRelations = relations(gymPlans, ({ one, many }) => ({
+  gym: one(gyms, {
+    fields: [gymPlans.gymId],
+    references: [gyms.id],
+  }),
+  subscriptions: many(gymMemberSubscriptions),
+}));
+
+export const gymMemberSubscriptionsRelations = relations(gymMemberSubscriptions, ({ one }) => ({
+  gym: one(gyms, {
+    fields: [gymMemberSubscriptions.gymId],
+    references: [gyms.id],
+  }),
+  member: one(users, {
+    fields: [gymMemberSubscriptions.memberId],
+    references: [users.id],
+  }),
+  plan: one(gymPlans, {
+    fields: [gymMemberSubscriptions.planId],
+    references: [gymPlans.id],
   }),
 }));

@@ -12,12 +12,13 @@ import { User } from "@shared/schema";
 export default function AcademiaRenovacoes() {
   const { toast } = useToast();
   const { isAuthenticated, isLoading } = useAuth();
+  const isPreview = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('preview') === '1';
   const [searchTerm, setSearchTerm] = useState("");
 
   // Fetch renewal candidates
   const { data: renovacoes = [], isLoading: isLoadingRenovacoes } = useQuery<User[]>({
     queryKey: ["/api/academia/renovacoes"],
-    enabled: isAuthenticated,
+    enabled: isAuthenticated || isPreview,
   });
 
   // Filter users based on search

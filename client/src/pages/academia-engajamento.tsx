@@ -19,12 +19,13 @@ interface EngajamentoUser {
 
 export default function AcademiaEngajamento() {
   const { isAuthenticated, isLoading } = useAuth();
+  const isPreview = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('preview') === '1';
   const [searchTerm, setSearchTerm] = useState("");
 
   // Fetch engagement data
   const { data: engajamento = [], isLoading: isLoadingEngajamento } = useQuery<EngajamentoUser[]>({
     queryKey: ["/api/academia/engajamento"],
-    enabled: isAuthenticated,
+    enabled: isAuthenticated || isPreview,
   });
 
   // Filter users based on search

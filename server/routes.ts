@@ -419,6 +419,164 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json({ authenticated: !!(req.session as any)?.adminAuthenticated });
   });
 
+  // Preview routes (development only): allow selecting a gym to preview academy views without auth
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[preview] Preview routes enabled');
+    app.get('/api/preview/gyms', async (_req, res) => {
+      try {
+        const gyms = await storage.getAllGyms();
+        res.json(gyms.map(g => ({ id: g.id, name: g.name, email: g.email })));
+      } catch (error) {
+        console.error('Error fetching preview gyms:', error);
+        res.status(500).json({ message: 'Failed to fetch gyms' });
+      }
+    });
+
+    app.get('/api/preview/gym/:id/dashboard', async (req, res) => {
+      try {
+        const gymId = req.params.id;
+        const data = await storage.getAcademiaDashboard(gymId);
+        res.json(data);
+      } catch (error) {
+        console.error('Error fetching preview dashboard:', error);
+        res.status(500).json({ message: 'Failed to fetch dashboard' });
+      }
+    });
+
+    app.get('/api/preview/gym/:id/alunos', async (req, res) => {
+      try {
+        const gymId = req.params.id;
+        // Corrigir dados faltantes de associação: incluir usuários com users.gymId
+        const data = await storage.getAcademiaAlunos(gymId);
+        if (Array.isArray(data) && data.length === 0) {
+          const all = await storage.getAllUsers();
+          const fallback = all.filter((u: any) => u.userType === 'aluno' && u.gym && u.gym.id === gymId);
+          return res.json(fallback);
+        }
+        res.json(data);
+      } catch (error) {
+        console.error('Error fetching preview alunos:', error);
+        res.status(500).json({ message: 'Failed to fetch alunos' });
+      }
+    });
+
+    app.get('/api/preview/gym/:id/personais', async (req, res) => {
+      try {
+        const gymId = req.params.id;
+        const data = await storage.getAcademiaPersonais(gymId);
+        if (Array.isArray(data) && data.length === 0) {
+          const all = await storage.getAllUsers();
+          const fallback = all.filter((u: any) => u.userType === 'personal' && u.gym && u.gym.id === gymId);
+          return res.json(fallback);
+        }
+        res.json(data);
+      } catch (error) {
+        console.error('Error fetching preview personais:', error);
+        res.status(500).json({ message: 'Failed to fetch personais' });
+      }
+    });
+
+    app.get('/api/preview/gym/:id/aniversariantes', async (req, res) => {
+      try {
+        const gymId = req.params.id;
+        const data = await storage.getAcademiaAniversariantes(gymId);
+        res.json(data);
+      } catch (error) {
+        console.error('Error fetching preview aniversariantes:', error);
+        res.status(500).json({ message: 'Failed to fetch aniversariantes' });
+      }
+    });
+
+    app.get('/api/preview/gym/:id/renovacoes', async (req, res) => {
+      try {
+        const gymId = req.params.id;
+        const data = await storage.getAcademiaRenovacoes(gymId);
+        res.json(data);
+      } catch (error) {
+        console.error('Error fetching preview renovacoes:', error);
+        res.status(500).json({ message: 'Failed to fetch renovacoes' });
+      }
+    });
+
+    // Preview: list all users (admin list) sem auth
+    app.get('/api/preview/users', async (_req, res) => {
+      try {
+        const users = await storage.getAllUsers();
+        res.json(users);
+      } catch (error) {
+        console.error('Error fetching preview users:', error);
+        res.status(500).json({ message: 'Failed to fetch users' });
+      }
+    });
+
+    // Seed: criar planos por academia e 10 alunos com assinaturas ativas (somente dev)
+    app.post('/api/preview/seed', async (_req, res) => {
+      try {
+        const allGyms = await storage.getAllGyms();
+        if (!allGyms || allGyms.length === 0) {
+          return res.status(400).json({ message: 'Nenhuma academia encontrada para seed' });
+        }
+
+        // Criar 2 planos por academia
+        const { gymPlans } = await import('@shared/schema');
+        const { db } = await import('./db');
+        const { randomUUID } = await import('crypto');
+        const now = new Date();
+        const addDays = (d: number) => new Date(now.getTime() + d * 86400000);
+
+        for (const gym of allGyms) {
+          // upsert dois planos
+          await db!.insert(gymPlans).values({
+            id: randomUUID(), gymId: gym.id, name: 'Mensal', price: 9900, durationDays: 30, isActive: true, createdAt: new Date(),
+          }).onConflictDoNothing();
+          await db!.insert(gymPlans).values({
+            id: randomUUID(), gymId: gym.id, name: 'Trimestral', price: 24900, durationDays: 90, isActive: true, createdAt: new Date(),
+          }).onConflictDoNothing();
+        }
+
+        // Carregar planos após possíveis inserts
+        const allPlans = await db!.select().from(gymPlans);
+
+        // Criar 10 alunos distribuídos entre academias
+        const { users } = await import('@shared/schema');
+        const emailsBase = [
+          'ana', 'bruno', 'carla', 'diego', 'edu', 'fernanda', 'guilherme', 'helena', 'igor', 'julia'
+        ];
+        const createdUsers: any[] = [];
+        for (let i = 0; i < 10; i++) {
+          const gym = allGyms[i % allGyms.length];
+          const email = `${emailsBase[i]}+seed${i}@teste.com`;
+          const [u] = await db!.insert(users).values({
+            id: randomUUID(), email, userType: 'aluno', name: emailsBase[i], gymId: gym.id, createdAt: new Date(), updatedAt: new Date(),
+          }).onConflictDoNothing().returning();
+          if (u) createdUsers.push(u);
+        }
+
+        // Criar assinaturas ativas para cada aluno criado
+        const { gymMemberSubscriptions } = await import('@shared/schema');
+        for (const u of createdUsers) {
+          const plansOfGym = allPlans.filter(p => p.gymId === u.gymId);
+          const plan = plansOfGym[0];
+          await db!.insert(gymMemberSubscriptions).values({
+            id: randomUUID(),
+            gymId: u.gymId!,
+            memberId: u.id,
+            planId: plan.id,
+            startDate: now,
+            endDate: addDays(plan.durationDays),
+            status: 'active',
+            createdAt: new Date(),
+          }).onConflictDoNothing();
+        }
+
+        res.json({ ok: true, gyms: allGyms.length, usersCreated: createdUsers.length });
+      } catch (error) {
+        console.error('Seed error:', error);
+        res.status(500).json({ message: 'Seed failed' });
+      }
+    });
+  }
+
   // Academia dashboard
   app.get('/api/academia/dashboard', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
     try {

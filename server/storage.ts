@@ -7,6 +7,8 @@ import {
   personalClients,
   gymMembers,
   emailTemplates,
+  gymPlans,
+  gymMemberSubscriptions,
   type User,
   type UpsertUser,
   type Gym,
@@ -27,7 +29,7 @@ import {
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
-import { eq, and, desc, or } from "drizzle-orm";
+import { eq, and, desc, or, gt, lt, gte, lte } from "drizzle-orm";
 
 // Interface for storage operations
 export interface IStorage {
@@ -864,6 +866,20 @@ export class DatabaseStorage implements IStorage {
   // Gym operations
   async getGymMembers(gymId: string): Promise<User[]> {
     if (!db) return [];
+    const now = new Date();
+    // Prefer subscriptions ativas
+    const subs = await db
+      .select({ user: users })
+      .from(gymMemberSubscriptions)
+      .innerJoin(users, eq(gymMemberSubscriptions.memberId, users.id))
+      .where(and(
+        eq(gymMemberSubscriptions.gymId, gymId),
+        eq(gymMemberSubscriptions.status, 'active'),
+        lte(gymMemberSubscriptions.startDate, now as any),
+        or(gymMemberSubscriptions.endDate as any, gte(gymMemberSubscriptions.endDate as any, now as any))
+      ));
+    if (subs.length > 0) return subs.map((m: any) => m.user);
+    // Fallback: associação antiga
     const members = await db
       .select({ user: users })
       .from(gymMembers)
@@ -901,15 +917,25 @@ export class DatabaseStorage implements IStorage {
   // Academia module operations (simplified for database version)
   async getAcademiaDashboard(gymId: string): Promise<any> {
     if (!db) return { totalAlunos: 0, totalPersonais: 0, alunosAtivos: 0, sessoesSemana: 0 };
-    
-    const alunos = await this.getAcademiaAlunos(gymId);
-    const personais = await this.getAcademiaPersonais(gymId);
-    
+    const now = new Date();
+    const rows = await db
+      .select({ user: users })
+      .from(gymMemberSubscriptions)
+      .innerJoin(users, eq(gymMemberSubscriptions.memberId, users.id))
+      .where(and(
+        eq(gymMemberSubscriptions.gymId, gymId),
+        eq(gymMemberSubscriptions.status, 'active'),
+        lte(gymMemberSubscriptions.startDate, now as any),
+        or(gymMemberSubscriptions.endDate as any, gte(gymMemberSubscriptions.endDate as any, now as any))
+      ));
+    const lista = rows.map(r => r.user);
+    const totalAlunos = lista.filter(u => u.userType === 'aluno').length;
+    const totalPersonais = lista.filter(u => u.userType === 'personal').length;
     return {
-      totalAlunos: alunos.length,
-      totalPersonais: personais.length,
-      alunosAtivos: alunos.filter(a => a.userType === 'aluno').length,
-      sessoesSemana: 0 // Simplified for now
+      totalAlunos,
+      totalPersonais,
+      alunosAtivos: totalAlunos,
+      sessoesSemana: 0,
     };
   }
 

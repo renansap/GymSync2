@@ -64,20 +64,23 @@ function Router() {
       
       {/* Test route for GIFs */}
       <Route path="/test-gifs" component={TestGifs} />
+
+      {/* Rotas liberadas para preview (?preview=1) */}
+      <Route path="/academia" component={AcademiaDashboard} />
+      <Route path="/academia/alunos" component={AcademiaAlunos} />
+      <Route path="/academia/personais" component={AcademiaPersonais} />
+      <Route path="/academia/engajamento" component={AcademiaEngajamento} />
+      <Route path="/academia/aniversariantes" component={AcademiaAniversariantes} />
+      <Route path="/academia/renovacoes" component={AcademiaRenovacoes} />
+      <Route path="/aluno" component={AlunoDashboard} />
+      <Route path="/personal" component={PersonalDashboard} />
       
       {!isAuthenticated ? (
         <Route path="/" component={MultiLogin} />
       ) : (
         <>
           <Route path="/" component={Home} />
-          <Route path="/aluno" component={AlunoDashboard} />
-          <Route path="/personal" component={PersonalDashboard} />
-          <Route path="/academia" component={AcademiaDashboard} />
-          <Route path="/academia/alunos" component={AcademiaAlunos} />
-          <Route path="/academia/personais" component={AcademiaPersonais} />
-          <Route path="/academia/engajamento" component={AcademiaEngajamento} />
-          <Route path="/academia/aniversariantes" component={AcademiaAniversariantes} />
-          <Route path="/academia/renovacoes" component={AcademiaRenovacoes} />
+          {null}
         </>
       )}
       <Route component={NotFound} />

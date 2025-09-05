@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
@@ -15,8 +15,20 @@ export default function AcademiaDashboard() {
     isLoading: boolean;
   };
 
+  // Preview mode: allows opening the page without authentication when `?preview=1`
+  const isPreview = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('preview') === '1';
+  const initialGym = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('gymId') : null;
+  const [selectedGymId, setSelectedGymId] = useState<string | null>(initialGym);
+
+  // Preview: load gyms to choose
+  const { data: previewGyms = [] } = useQuery<any[]>({
+    queryKey: ['/api/preview/gyms'],
+    enabled: isPreview,
+  });
+
   // Redirect if not authenticated
   useEffect(() => {
+    if (isPreview) return;
     if (!isLoading && !isAuthenticated) {
       toast({
         title: "Unauthorized",
@@ -28,24 +40,36 @@ export default function AcademiaDashboard() {
       }, 500);
       return;
     }
-  }, [isAuthenticated, isLoading, toast]);
+  }, [isAuthenticated, isLoading, toast, isPreview]);
 
   // Fetch dashboard data
   const { data: dashboardData = {} } = useQuery<any>({
-    queryKey: ["/api/academia/dashboard"],
-    enabled: isAuthenticated,
+    queryKey: [
+      isPreview && selectedGymId
+        ? `/api/preview/gym/${selectedGymId}/dashboard`
+        : "/api/academia/dashboard",
+    ],
+    enabled: (isAuthenticated) || (isPreview && !!selectedGymId),
   });
 
   // Fetch gym members
   const { data: members = [] } = useQuery<User[]>({
-    queryKey: ["/api/academia/alunos"],
-    enabled: isAuthenticated,
+    queryKey: [
+      isPreview && selectedGymId
+        ? `/api/preview/gym/${selectedGymId}/alunos`
+        : "/api/academia/alunos",
+    ],
+    enabled: (isAuthenticated) || (isPreview && !!selectedGymId),
   });
 
   // Fetch birthday members
   const { data: birthdayMembers = [] } = useQuery<User[]>({
-    queryKey: ["/api/academia/aniversariantes"],
-    enabled: isAuthenticated,
+    queryKey: [
+      isPreview && selectedGymId
+        ? `/api/preview/gym/${selectedGymId}/aniversariantes`
+        : "/api/academia/aniversariantes",
+    ],
+    enabled: (isAuthenticated) || (isPreview && !!selectedGymId),
   });
 
   if (isLoading) {
@@ -58,6 +82,8 @@ export default function AcademiaDashboard() {
       </div>
     );
   }
+
+  // Não fazer early-return para manter o banner visível; mostraremos o placeholder dentro do layout
 
   const totalMembers = dashboardData.totalAlunos || members.length;
   const totalTrainers = dashboardData.totalPersonais || 0;
@@ -78,8 +104,68 @@ export default function AcademiaDashboard() {
     });
   };
 
+  const currentPath = typeof window !== 'undefined' ? window.location.pathname : '';
+  const isAcademiaView = currentPath.startsWith('/academia');
+  const isAlunoView = currentPath.startsWith('/aluno');
+  const isPersonalView = currentPath.startsWith('/personal');
+
   return (
     <div className="min-h-screen bg-background pb-20">
+      {isPreview && (
+        <div className="sticky top-0 z-50 bg-amber-50 border-b border-amber-200">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 flex items-center justify-between">
+            <p className="text-sm text-amber-800">
+              Você está no modo preview. Escolha uma visão e uma academia:
+            </p>
+            <div className="flex gap-2">
+              {isAcademiaView && (
+                <>
+                  <button
+                    className="px-3 py-1 text-xs rounded bg-primary text-primary-foreground hover:bg-primary/90"
+                    onClick={() => (window.location.href = "/academia?preview=1")}
+                  >
+                    Academia
+                  </button>
+                  <select
+                    className="px-2 py-1 text-xs border rounded bg-white"
+                    value={selectedGymId ?? ''}
+                    onChange={(e) => {
+                      const id = e.target.value || null;
+                      setSelectedGymId(id);
+                      const params = new URLSearchParams(window.location.search);
+                      if (id) params.set('gymId', id); else params.delete('gymId');
+                      if (!params.get('preview')) params.set('preview', '1');
+                      const newUrl = `/academia?${params.toString()}`;
+                      window.history.replaceState({}, '', newUrl);
+                    }}
+                  >
+                    <option value="">Selecione a academia</option>
+                    {previewGyms.map((g: any) => (
+                      <option key={g.id} value={g.id}>{g.name}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+              {isAlunoView && (
+                <button
+                  className="px-3 py-1 text-xs rounded bg-secondary text-secondary-foreground hover:bg-secondary/90"
+                  onClick={() => (window.location.href = "/aluno?preview=1")}
+                >
+                  Aluno
+                </button>
+              )}
+              {isPersonalView && (
+                <button
+                  className="px-3 py-1 text-xs rounded bg-accent text-accent-foreground hover:bg-accent/90"
+                  onClick={() => (window.location.href = "/personal?preview=1")}
+                >
+                  Personal
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <header className="bg-card shadow-sm border-b border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -115,6 +201,11 @@ export default function AcademiaDashboard() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {isPreview && !selectedGymId && (
+          <div className="text-center mb-6">
+            <p className="text-muted-foreground">Selecione uma academia no topo para visualizar os dados.</p>
+          </div>
+        )}
         {/* Gym Overview */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
           <Card>
@@ -291,7 +382,16 @@ export default function AcademiaDashboard() {
                 <h3 className="text-lg font-semibold">Membros Recentes</h3>
                 <Button 
                   size="sm" 
-                  onClick={() => window.location.href = '/academia/alunos'}
+                  onClick={() => {
+                    if (isPreview) {
+                      const params = new URLSearchParams();
+                      params.set('preview', '1');
+                      if (selectedGymId) params.set('gymId', selectedGymId);
+                      window.location.href = `/academia/alunos?${params.toString()}`;
+                    } else {
+                      window.location.href = '/academia/alunos';
+                    }
+                  }}
                   data-testid="button-manage-members"
                 >
                   <UserPlus className="mr-2 w-4 h-4" />Gerenciar Alunos
@@ -344,7 +444,16 @@ export default function AcademiaDashboard() {
                 <Button 
                   size="sm"
                   className="bg-secondary text-secondary-foreground hover:bg-secondary/90"
-                  onClick={() => window.location.href = '/academia/personais'}
+                  onClick={() => {
+                    if (isPreview) {
+                      const params = new URLSearchParams();
+                      params.set('preview', '1');
+                      if (selectedGymId) params.set('gymId', selectedGymId);
+                      window.location.href = `/academia/personais?${params.toString()}`;
+                    } else {
+                      window.location.href = '/academia/personais';
+                    }
+                  }}
                   data-testid="button-manage-trainers"
                 >
                   <UserPlus className="mr-2 w-4 h-4" />Gerenciar Personais
