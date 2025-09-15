@@ -1,4 +1,7 @@
 {
+  "registries": {
+    "@acme": "https://acme.com/r/{name}.json"
+  },
   "mcpServers": {
     "supabase": {
       "command": "npx",
