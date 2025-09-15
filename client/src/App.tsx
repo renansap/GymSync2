@@ -14,6 +14,7 @@ import AcademiaPersonais from "./pages/academia-personais";
 import AcademiaEngajamento from "./pages/academia-engajamento";
 import AcademiaAniversariantes from "./pages/academia-aniversariantes";
 import AcademiaRenovacoes from "./pages/academia-renovacoes";
+import HubAcademia from "./pages/hub-academia";
 import AdminUsuarios from "./pages/admin-usuarios";
 import AdminDashboard from "./pages/admin-dashboard";
 import AdminLogin from "./pages/admin-login";
@@ -66,6 +67,7 @@ function Router() {
       <Route path="/test-gifs" component={TestGifs} />
 
       {/* Rotas liberadas para preview (?preview=1) */}
+      <Route path="/hub-academia" component={HubAcademia} />
       <Route path="/academia" component={AcademiaDashboard} />
       <Route path="/academia/alunos" component={AcademiaAlunos} />
       <Route path="/academia/personais" component={AcademiaPersonais} />

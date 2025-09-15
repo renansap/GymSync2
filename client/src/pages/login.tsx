@@ -27,7 +27,9 @@ export default function Login() {
 
   const userTypes = [
     { value: "aluno", label: "Aluno", icon: Users, color: "text-blue-600" },
-    { value: "personal", label: "Personal Trainer", icon: Shield, color: "text-purple-600" }
+    { value: "personal", label: "Personal Trainer", icon: Shield, color: "text-purple-600" },
+    { value: "academia", label: "Academia", icon: Building2, color: "text-green-600" },
+    { value: "admin", label: "Administrador", icon: Shield, color: "text-red-600" }
   ];
 
   const handleTraditionalLogin = async (e: React.FormEvent) => {
@@ -77,6 +79,9 @@ export default function Login() {
         } else if (userType === 'personal') {
           console.log('📍 Redirecionando para /personal');
           window.location.href = '/personal';
+        } else if (userType === 'academia' || userType === 'admin') {
+          console.log('📍 Redirecionando para /hub-academia');
+          window.location.href = '/hub-academia';
         } else {
           console.log('📍 Tipo de usuário não reconhecido, redirecionando para home');
           window.location.href = '/';

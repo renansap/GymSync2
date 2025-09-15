@@ -1,12 +1,15 @@
 import type { Express, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { db } from "./db";
 import { isAuthenticated } from "./auth";
 import { AuthenticatedRequest } from "./types";
 import { generateWorkout } from "./aiService";
 import { emailService } from "./emailService";
-import { insertWorkoutSchema, insertWorkoutSessionSchema, loginSchema, passwordResetSchema, insertEmailTemplateSchema } from "@shared/schema";
+import { insertWorkoutSchema, insertWorkoutSessionSchema, loginSchema, passwordResetSchema, insertEmailTemplateSchema, gymMembers } from "@shared/schema";
+import { eq, and } from "drizzle-orm";
 import bcrypt from 'bcrypt';
+import { randomUUID } from 'crypto';
 import { passwordResetLimiter, aiLimiter } from './middleware/rateLimiter';
 
 // Function to ensure default email templates exist
@@ -161,8 +164,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         redirectUrl = '/personal';
         console.log('🎯 Redirecting personal to:', redirectUrl);
       } else if (userType === 'academia') {
-        redirectUrl = '/academia';
+        redirectUrl = '/hub-academia';
         console.log('🎯 Redirecting academia to:', redirectUrl);
+      } else if (userType === 'admin') {
+        redirectUrl = '/hub-academia';
+        console.log('🎯 Redirecting admin to:', redirectUrl);
       } else {
         console.log('🎯 No user type found, redirecting to home');
         redirectUrl = '/';
@@ -363,6 +369,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Para academias, o gymId é o próprio ID do usuário
     // ou se tiver gymId específico, usar esse
     const gymId = user.gymId || user.id;
+    if (!gymId) {
+      return res.status(400).json({ message: "Academia não identificada" });
+    }
+    
+    // Adicionar gymId ao request para uso nas rotas
+    (req as any).gymId = gymId;
+    next();
+  };
+
+  // Hub da Academia - permite acesso para Academia e Admin
+  const requireAcademiaHubAccess = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    const user = req.user;
+    if (!user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+    
+    // Verificar se o usuário é do tipo 'academia' ou 'admin'
+    if (user.userType !== 'academia' && user.userType !== 'admin') {
+      return res.status(403).json({ message: "Acesso restrito a academias e administradores" });
+    }
+    
+    // Para academias, o gymId é o próprio ID do usuário ou o gymId associado
+    // Para admins, pode acessar qualquer academia (gymId será passado via query param)
+    let gymId = user.gymId || user.id;
+    
+    // Se for admin e tiver gymId na query, usar esse
+    if (user.userType === 'admin' && req.query.gymId) {
+      gymId = req.query.gymId as string;
+    }
+    
     if (!gymId) {
       return res.status(400).json({ message: "Academia não identificada" });
     }
@@ -746,6 +782,186 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching renovações:", error);
       res.status(500).json({ message: "Failed to fetch renewal data" });
+    }
+  });
+
+  // ===== ROTAS TEMPORÁRIAS PARA TESTE =====
+  // Rota para criar usuário admin de teste
+  app.post('/api/test/create-admin', async (req, res) => {
+    try {
+      const { email, password, name } = req.body;
+      
+      if (!email || !password || !name) {
+        return res.status(400).json({ message: "Email, senha e nome são obrigatórios" });
+      }
+
+      // Verificar se já existe
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(400).json({ message: "Usuário já existe" });
+      }
+
+      // Criar usuário admin
+      const hashedPassword = await bcrypt.hash(password, 12);
+      const user = await storage.createUser({
+        email,
+        password: hashedPassword,
+        name,
+        userType: 'admin',
+        firstName: name.split(' ')[0],
+        lastName: name.split(' ').slice(1).join(' ')
+      });
+
+      res.json({ 
+        success: true, 
+        message: "Usuário admin criado com sucesso",
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          userType: user.userType
+        }
+      });
+    } catch (error) {
+      console.error("Error creating admin user:", error);
+      res.status(500).json({ message: "Erro ao criar usuário admin" });
+    }
+  });
+
+  // Rota para definir senha para usuário academia existente
+  app.post('/api/test/set-academia-password', async (req, res) => {
+    try {
+      const { email, password } = req.body;
+      
+      if (!email || !password) {
+        return res.status(400).json({ message: "Email e senha são obrigatórios" });
+      }
+
+      // Buscar usuário academia
+      const user = await storage.getUserByEmail(email);
+      if (!user) {
+        return res.status(404).json({ message: "Usuário não encontrado" });
+      }
+
+      if (user.userType !== 'academia') {
+        return res.status(400).json({ message: "Usuário não é do tipo academia" });
+      }
+
+      // Definir senha
+      const hashedPassword = await bcrypt.hash(password, 12);
+      await storage.setUserPassword(user.id, hashedPassword);
+
+      res.json({ 
+        success: true, 
+        message: "Senha definida com sucesso para a academia",
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          userType: user.userType
+        }
+      });
+    } catch (error) {
+      console.error("Error setting academia password:", error);
+      res.status(500).json({ message: "Erro ao definir senha" });
+    }
+  });
+
+  // ===== HUB DA ACADEMIA =====
+  // Rota principal do Hub da Academia
+  app.get('/api/hub-academia', isAuthenticated, requireAcademiaHubAccess, async (req: AuthenticatedRequest, res) => {
+    try {
+      const gymId = (req as any).gymId;
+      const user = req.user;
+      
+      // Buscar dados da academia
+      let academia = await storage.getGym(gymId);
+      
+      // Se não encontrar academia e o usuário for do tipo academia, criar uma temporária
+      if (!academia && user.userType === 'academia') {
+        academia = {
+          id: gymId,
+          name: user.name || 'Minha Academia',
+          email: user.email || 'contato@academia.com',
+          address: null,
+          phone: null,
+          isActive: true,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+      }
+      
+      if (!academia) {
+        return res.status(404).json({ message: "Academia não encontrada" });
+      }
+
+      // Buscar estatísticas gerais (versão simplificada)
+      let dashboard = { totalAlunos: 0, totalPersonais: 0, alunosAtivos: 0, treinosHoje: 0 };
+      let alunos = [];
+      let personais = [];
+      let engajamento = [];
+      let aniversariantes = [];
+      let renovacoes = [];
+
+      try {
+        dashboard = await storage.getAcademiaDashboard(gymId);
+        alunos = await storage.getAcademiaAlunos(gymId);
+        personais = await storage.getAcademiaPersonais(gymId);
+        engajamento = await storage.getAcademiaEngajamento(gymId);
+        aniversariantes = await storage.getAcademiaAniversariantes(gymId);
+        renovacoes = await storage.getAcademiaRenovacoes(gymId);
+      } catch (error) {
+        console.warn('Erro ao buscar dados da academia:', error);
+        // Continuar com dados vazios se houver erro
+      }
+
+      res.json({
+        academia: {
+          id: academia.id,
+          name: academia.name,
+          address: academia.address || null,
+          phone: academia.phone || null,
+          email: academia.email,
+          isActive: academia.isActive
+        },
+        dashboard,
+        estatisticas: {
+          totalAlunos: alunos.length,
+          totalPersonais: personais.length,
+          engajamento: engajamento,
+          aniversariantes: aniversariantes.length,
+          renovacoes: renovacoes.length
+        },
+        user: {
+          id: user.id,
+          name: user.name,
+          userType: user.userType
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching hub data:", error);
+      res.status(500).json({ message: "Failed to fetch hub data" });
+    }
+  });
+
+  // Rota para listar academias disponíveis (para admins)
+  app.get('/api/hub-academia/academias', isAuthenticated, requireAcademiaHubAccess, async (req: AuthenticatedRequest, res) => {
+    try {
+      const user = req.user;
+      
+      // Se for admin, listar todas as academias
+      if (user.userType === 'admin') {
+        const academias = await storage.getAllGyms();
+        res.json(academias);
+      } else {
+        // Se for academia, retornar apenas sua própria academia
+        const gymId = (req as any).gymId;
+        const academia = await storage.getGym(gymId);
+        res.json(academia ? [academia] : []);
+      }
+    } catch (error) {
+      console.error("Error fetching academias:", error);
+      res.status(500).json({ message: "Failed to fetch academias" });
     }
   });
 
@@ -1474,6 +1690,1033 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
+
+  // Rota de login simples (fallback quando Replit Auth está desabilitado)
+  app.get("/api/login", (req, res) => {
+    res.redirect("/login");
+  });
+
+  // Rota temporária para associar usuário à academia
+  app.post('/api/test/associate-user-gym', async (req, res) => {
+    try {
+      const { userId, gymId } = req.body;
+      
+      if (!userId || !gymId) {
+        return res.status(400).json({ message: "userId e gymId são obrigatórios" });
+      }
+
+      // Atualizar usuário com gymId
+      const updatedUser = await storage.updateUser(userId, { gymId });
+      
+      if (!updatedUser) {
+        return res.status(404).json({ message: "Usuário não encontrado" });
+      }
+
+      res.json({ 
+        success: true, 
+        message: "Usuário associado à academia com sucesso",
+        user: {
+          id: updatedUser.id,
+          email: updatedUser.email,
+          userType: updatedUser.userType,
+          gymId: updatedUser.gymId
+        }
+      });
+    } catch (error) {
+      console.error("Error associating user to gym:", error);
+      res.status(500).json({ message: "Erro ao associar usuário à academia" });
+    }
+  });
+
+  // Rota temporária para criar academia no banco
+  app.post('/api/test/create-gym', async (req, res) => {
+    try {
+      const gymData = {
+        name: "Fitness Plus Academia",
+        email: "contato@fitnessplus.com",
+        phone: "(11) 99999-9999",
+        address: "Rua das Flores, 123",
+        city: "São Paulo",
+        state: "SP",
+        zipCode: "01234-567",
+        cnpj: "12.345.678/0001-90",
+        isActive: true,
+        maxMembers: 1000
+      };
+
+      // Criar academia no banco
+      const newGym = await storage.createGym(gymData);
+      
+      if (!newGym) {
+        return res.status(500).json({ message: "Erro ao criar academia" });
+      }
+
+      res.json({ 
+        success: true, 
+        message: "Academia criada com sucesso",
+        gym: {
+          id: newGym.id,
+          name: newGym.name,
+          email: newGym.email,
+          phone: newGym.phone,
+          address: newGym.address,
+          city: newGym.city,
+          state: newGym.state,
+          zipCode: newGym.zipCode,
+          cnpj: newGym.cnpj,
+          isActive: newGym.isActive
+        }
+      });
+    } catch (error) {
+      console.error("Error creating gym:", error);
+      res.status(500).json({ message: "Erro ao criar academia", error: error.message });
+    }
+  });
+
+  // Rota temporária para corrigir alunos existentes
+  app.post('/api/test/fix-students', async (req, res) => {
+    try {
+      const { gymId } = req.body;
+      
+      if (!gymId) {
+        return res.status(400).json({ message: "gymId é obrigatório" });
+      }
+
+      // IDs dos alunos criados anteriormente
+      const studentIds = [
+        "12a2fb33-cb0e-4544-8f65-8c953b19c637", // ana.silva@fitnessplus.com
+        "24ea2aca-d19e-48ce-9616-cd421d495744", // carlos.santos@fitnessplus.com
+        "19262acf-3a93-4069-b9ea-8564efc8b1d6", // maria.oliveira@fitnessplus.com
+        "626f41df-1544-4873-9ce8-39b9d3b36d68", // joao.ferreira@fitnessplus.com
+        "fe3bddd1-29e5-4804-b6db-7991e7a67e03", // lucia.costa@fitnessplus.com
+        "8d384e56-adc5-4b86-a46c-bd2436d72db3", // pedro.almeida@fitnessplus.com
+        "c67c5b9e-0fe0-4e34-991b-96c92a9fe265", // fernanda.rodrigues@fitnessplus.com
+        "80d862f8-98bf-4439-a4aa-572215b2aed7"  // rafael.mendes@fitnessplus.com
+      ];
+
+      const updatedStudents = [];
+      const errors = [];
+
+      // Atualizar cada aluno
+      for (const studentId of studentIds) {
+        try {
+          const updateData = {
+            gymId: gymId,
+            isActive: true
+          };
+
+          const updatedStudent = await storage.updateUser(studentId, updateData);
+          if (updatedStudent) {
+            updatedStudents.push({
+              id: updatedStudent.id,
+              email: updatedStudent.email,
+              name: `${updatedStudent.firstName || ''} ${updatedStudent.lastName || ''}`.trim(),
+              userType: updatedStudent.userType,
+              gymId: updatedStudent.gymId
+            });
+          }
+        } catch (error) {
+          console.error(`Erro ao atualizar aluno ${studentId}:`, error);
+          errors.push({
+            id: studentId,
+            error: error.message
+          });
+        }
+      }
+
+      res.json({ 
+        success: true, 
+        message: `${updatedStudents.length} alunos atualizados com sucesso`,
+        students: updatedStudents,
+        errors: errors,
+        totalUpdated: updatedStudents.length,
+        totalErrors: errors.length
+      });
+    } catch (error) {
+      console.error("Error fixing students:", error);
+      res.status(500).json({ message: "Erro ao corrigir alunos", error: error.message });
+    }
+  });
+
+  // Rota temporária para configurar usuários academia para todas as academias
+  app.post('/api/test/setup-all-academias', async (req, res) => {
+    try {
+      const academias = [
+        { 
+          id: "81a690aa-1f9b-438c-8536-9267893922ff", 
+          name: "Fitness Plus Academia", 
+          email: "contato@fitnessplus.com",
+          password: "123456"
+        },
+        { 
+          id: "b6bbeace-cf85-437a-8aba-07abcd330f7a", 
+          name: "Gym Power", 
+          email: "admin@gympower.com.br",
+          password: "123456"
+        },
+        { 
+          id: "628215ab-a045-4c6b-b892-e7f5b06dec2b", 
+          name: "FitWell", 
+          email: "renansap@hotmail.com",
+          password: "123456"
+        },
+        { 
+          id: "21bffe3b-667b-4e84-ada3-0926ade0bf03", 
+          name: "Sesi Novo Hamburgo", 
+          email: "renansap@gmail.com",
+          password: "123456"
+        }
+      ];
+      
+      const resultados = [];
+      
+      for (const academia of academias) {
+        try {
+          console.log(`🔧 Configurando academia: ${academia.name}`);
+          
+          // Verificar se já existe usuário academia
+          let user = await storage.getUserByEmail(academia.email);
+          
+          if (!user) {
+            // Criar usuário academia
+            const userData = {
+              id: randomUUID(),
+              name: academia.name,
+              email: academia.email,
+              userType: 'academia',
+              gymId: academia.id,
+              isActive: true,
+              emailVerified: true
+            };
+            
+            user = await storage.createUser(userData);
+            console.log(`✅ Usuário academia criado: ${academia.name}`);
+          } else {
+            // Atualizar usuário existente
+            const updateData = {
+              userType: 'academia',
+              gymId: academia.id,
+              isActive: true
+            };
+            
+            user = await storage.updateUser(user.id, updateData);
+            console.log(`✅ Usuário academia atualizado: ${academia.name}`);
+          }
+          
+          // Definir senha
+          const hashedPassword = await bcrypt.hash(academia.password, 12);
+          await storage.updateUser(user.id, { password: hashedPassword });
+          
+          resultados.push({
+            id: academia.id,
+            name: academia.name,
+            email: academia.email,
+            userId: user.id,
+            status: 'success',
+            message: 'Academia configurada com sucesso'
+          });
+          
+        } catch (error) {
+          console.error(`❌ Erro na academia ${academia.name}:`, error.message);
+          resultados.push({
+            id: academia.id,
+            name: academia.name,
+            email: academia.email,
+            status: 'error',
+            message: error.message
+          });
+        }
+      }
+      
+      res.json({
+        totalAcademias: academias.length,
+        academias: resultados
+      });
+    } catch (error) {
+      console.error("Error setting up academias:", error);
+      res.status(500).json({ message: "Failed to setup academias", error: error.message });
+    }
+  });
+
+  // Rota temporária para testar todas as academias
+  app.get('/api/test/debug-all-academias', async (req, res) => {
+    try {
+      const academias = [
+        { id: "81a690aa-1f9b-438c-8536-9267893922ff", name: "Fitness Plus Academia" },
+        { id: "b6bbeace-cf85-437a-8aba-07abcd330f7a", name: "Gym Power" },
+        { id: "628215ab-a045-4c6b-b892-e7f5b06dec2b", name: "FitWell" },
+        { id: "21bffe3b-667b-4e84-ada3-0926ade0bf03", name: "Sesi Novo Hamburgo" }
+      ];
+      
+      const resultados = [];
+      
+      for (const academia of academias) {
+        try {
+          console.log(`🔍 Testando academia: ${academia.name} (${academia.id})`);
+          
+          const members = await storage.getGymMembers(academia.id);
+          const alunos = members.filter(m => m.userType === 'aluno');
+          const personais = members.filter(m => m.userType === 'personal');
+          
+          resultados.push({
+            id: academia.id,
+            name: academia.name,
+            totalMembers: members.length,
+            totalAlunos: alunos.length,
+            totalPersonais: personais.length,
+            alunos: alunos.map(a => ({ id: a.id, email: a.email, name: a.name }))
+          });
+          
+          console.log(`📊 ${academia.name}: ${alunos.length} alunos, ${personais.length} personais`);
+        } catch (error) {
+          console.error(`❌ Erro na academia ${academia.name}:`, error.message);
+          resultados.push({
+            id: academia.id,
+            name: academia.name,
+            error: error.message,
+            totalMembers: 0,
+            totalAlunos: 0,
+            totalPersonais: 0
+          });
+        }
+      }
+      
+      res.json({
+        totalAcademias: academias.length,
+        academias: resultados
+      });
+    } catch (error) {
+      console.error("Error testing all academias:", error);
+      res.status(500).json({ message: "Failed to test academias", error: error.message });
+    }
+  });
+
+  // Rota temporária para testar getGymMembers de uma academia específica
+  app.get('/api/test/debug-gym-members/:gymId', async (req, res) => {
+    try {
+      const gymId = req.params.gymId;
+      
+      console.log('🔍 Testando getGymMembers para gymId:', gymId);
+      
+      const members = await storage.getGymMembers(gymId);
+      console.log('📊 Membros encontrados:', members.length);
+      console.log('👥 Membros:', members.map(m => ({ id: m.id, email: m.email, userType: m.userType })));
+      
+      const alunos = members.filter(m => m.userType === 'aluno');
+      console.log('🎓 Alunos encontrados:', alunos.length);
+      
+      res.json({
+        gymId,
+        totalMembers: members.length,
+        totalAlunos: alunos.length,
+        members: members.map(m => ({ id: m.id, email: m.email, userType: m.userType })),
+        alunos: alunos.map(a => ({ id: a.id, email: a.email, name: a.name }))
+      });
+    } catch (error) {
+      console.error("Error testing getGymMembers:", error);
+      res.status(500).json({ message: "Failed to test getGymMembers", error: error.message });
+    }
+  });
+
+  // Rota temporária para testar getGymMembers
+  app.get('/api/test/debug-gym-members', async (req, res) => {
+    try {
+      const gymId = "81a690aa-1f9b-438c-8536-9267893922ff"; // Fitness Plus Academia
+      
+      console.log('🔍 Testando getGymMembers para gymId:', gymId);
+      
+      const members = await storage.getGymMembers(gymId);
+      console.log('📊 Membros encontrados:', members.length);
+      console.log('👥 Membros:', members.map(m => ({ id: m.id, email: m.email, userType: m.userType })));
+      
+      const alunos = members.filter(m => m.userType === 'aluno');
+      console.log('🎓 Alunos encontrados:', alunos.length);
+      
+      res.json({
+        gymId,
+        totalMembers: members.length,
+        totalAlunos: alunos.length,
+        members: members.map(m => ({ id: m.id, email: m.email, userType: m.userType })),
+        alunos: alunos.map(a => ({ id: a.id, email: a.email, name: a.name }))
+      });
+    } catch (error) {
+      console.error("Error testing getGymMembers:", error);
+      res.status(500).json({ message: "Failed to test getGymMembers", error: error.message });
+    }
+  });
+
+  // Rota temporária para testar hub de todas as academias
+  app.get('/api/test/hub-all-academias', async (req, res) => {
+    try {
+      const academias = [
+        { id: "81a690aa-1f9b-438c-8536-9267893922ff", name: "Fitness Plus Academia", email: "contato@fitnessplus.com" },
+        { id: "b6bbeace-cf85-437a-8aba-07abcd330f7a", name: "Gym Power", email: "admin@gympower.com.br" },
+        { id: "628215ab-a045-4c6b-b892-e7f5b06dec2b", name: "FitWell", email: "renansap@hotmail.com" },
+        { id: "21bffe3b-667b-4e84-ada3-0926ade0bf03", name: "Sesi Novo Hamburgo", email: "renansap@gmail.com" }
+      ];
+      
+      const resultados = [];
+      
+      for (const academia of academias) {
+        try {
+          console.log(`🔍 Testando hub da academia: ${academia.name}`);
+          
+          // Buscar dados da academia
+          let academiaData = await storage.getGym(academia.id);
+          
+          if (!academiaData) {
+            resultados.push({
+              id: academia.id,
+              name: academia.name,
+              email: academia.email,
+              error: "Academia não encontrada",
+              dashboard: { totalAlunos: 0, totalPersonais: 0, alunosAtivos: 0, treinosHoje: 0 },
+              estatisticas: { totalAlunos: 0, totalPersonais: 0, engajamento: [], aniversariantes: 0, renovacoes: 0 }
+            });
+            continue;
+          }
+
+          // Buscar estatísticas gerais
+          let dashboard = { totalAlunos: 0, totalPersonais: 0, alunosAtivos: 0, treinosHoje: 0 };
+          let alunos = [];
+          let personais = [];
+          let engajamento = [];
+          let aniversariantes = [];
+          let renovacoes = [];
+
+          try {
+            dashboard = await storage.getAcademiaDashboard(academia.id);
+            alunos = await storage.getAcademiaAlunos(academia.id);
+            personais = await storage.getAcademiaPersonais(academia.id);
+            engajamento = await storage.getAcademiaEngajamento(academia.id);
+            aniversariantes = await storage.getAcademiaAniversariantes(academia.id);
+            renovacoes = await storage.getAcademiaRenovacoes(academia.id);
+          } catch (error) {
+            console.warn(`Erro ao buscar dados da academia ${academia.name}:`, error);
+          }
+
+          resultados.push({
+            id: academia.id,
+            name: academia.name,
+            email: academia.email,
+            academia: {
+              id: academiaData.id,
+              name: academiaData.name,
+              address: academiaData.address || null,
+              phone: academiaData.phone || null,
+              email: academiaData.email,
+              isActive: academiaData.isActive
+            },
+            dashboard,
+            estatisticas: {
+              totalAlunos: alunos.length,
+              totalPersonais: personais.length,
+              engajamento: engajamento,
+              aniversariantes: aniversariantes.length,
+              renovacoes: renovacoes.length
+            },
+            alunos: alunos.map(a => ({ id: a.id, email: a.email, name: a.name })),
+            personais: personais.map(p => ({ id: p.id, email: p.email, name: p.name }))
+          });
+          
+          console.log(`✅ ${academia.name}: ${alunos.length} alunos, ${personais.length} personais`);
+        } catch (error) {
+          console.error(`❌ Erro na academia ${academia.name}:`, error.message);
+          resultados.push({
+            id: academia.id,
+            name: academia.name,
+            email: academia.email,
+            error: error.message,
+            dashboard: { totalAlunos: 0, totalPersonais: 0, alunosAtivos: 0, treinosHoje: 0 },
+            estatisticas: { totalAlunos: 0, totalPersonais: 0, engajamento: [], aniversariantes: 0, renovacoes: 0 }
+          });
+        }
+      }
+      
+      res.json({
+        totalAcademias: academias.length,
+        academias: resultados
+      });
+    } catch (error) {
+      console.error("Error testing all hubs:", error);
+      res.status(500).json({ message: "Failed to test hubs", error: error.message });
+    }
+  });
+
+  // Rota temporária para testar hub da Gym Power especificamente
+  app.get('/api/test/hub-gym-power-debug', async (req, res) => {
+    try {
+      const gymId = "b6bbeace-cf85-437a-8aba-07abcd330f7a"; // Gym Power
+      
+      console.log('🔍 Testando hub da Gym Power...');
+      
+      let academia = await storage.getGym(gymId);
+      if (!academia) {
+        return res.status(404).json({ message: "Academia não encontrada" });
+      }
+      
+      console.log('📊 Academia encontrada:', academia.name);
+      
+      let dashboard = { totalAlunos: 0, totalPersonais: 0, alunosAtivos: 0, sessoesSemana: 0 };
+      let alunos = [];
+      let personais = [];
+      let engajamento = [];
+      let aniversariantes = [];
+      let renovacoes = [];
+      
+      try {
+        console.log('🔍 Buscando dados da academia...');
+        dashboard = await storage.getAcademiaDashboard(gymId);
+        console.log('📊 Dashboard:', dashboard);
+        
+        alunos = await storage.getAcademiaAlunos(gymId);
+        console.log('👥 Alunos encontrados:', alunos.length);
+        
+        personais = await storage.getAcademiaPersonais(gymId);
+        console.log('🏋️ Personais encontrados:', personais.length);
+        
+        engajamento = await storage.getAcademiaEngajamento(gymId);
+        aniversariantes = await storage.getAcademiaAniversariantes(gymId);
+        renovacoes = await storage.getAcademiaRenovacoes(gymId);
+      } catch (error) {
+        console.warn('Erro ao buscar dados da academia:', error);
+      }
+      
+      res.json({
+        academia: {
+          id: academia.id,
+          name: academia.name,
+          address: academia.address,
+          phone: academia.phone,
+          email: academia.email,
+          isActive: academia.isActive
+        },
+        dashboard,
+        estatisticas: {
+          totalAlunos: dashboard.totalAlunos,
+          totalPersonais: dashboard.totalPersonais,
+          engajamento: engajamento,
+          aniversariantes: aniversariantes.length,
+          renovacoes: renovacoes.length
+        },
+        alunos: alunos,
+        personais: personais
+      });
+    } catch (error) {
+      console.error("Error fetching Gym Power hub data:", error);
+      res.status(500).json({ message: "Failed to fetch Gym Power hub data", error: error.message });
+    }
+  });
+
+  // Rota temporária para testar hub da academia sem autenticação
+  app.get('/api/test/hub-academia-debug', async (req, res) => {
+    try {
+      const gymId = "81a690aa-1f9b-438c-8536-9267893922ff"; // Fitness Plus Academia
+      
+      // Buscar dados da academia
+      let academia = await storage.getGym(gymId);
+      
+      if (!academia) {
+        return res.status(404).json({ message: "Academia não encontrada" });
+      }
+
+      // Buscar estatísticas gerais
+      let dashboard = { totalAlunos: 0, totalPersonais: 0, alunosAtivos: 0, treinosHoje: 0 };
+      let alunos = [];
+      let personais = [];
+      let engajamento = [];
+      let aniversariantes = [];
+      let renovacoes = [];
+
+      try {
+        dashboard = await storage.getAcademiaDashboard(gymId);
+        alunos = await storage.getAcademiaAlunos(gymId);
+        personais = await storage.getAcademiaPersonais(gymId);
+        engajamento = await storage.getAcademiaEngajamento(gymId);
+        aniversariantes = await storage.getAcademiaAniversariantes(gymId);
+        renovacoes = await storage.getAcademiaRenovacoes(gymId);
+      } catch (error) {
+        console.warn('Erro ao buscar dados da academia:', error);
+      }
+
+      res.json({
+        academia: {
+          id: academia.id,
+          name: academia.name,
+          address: academia.address || null,
+          phone: academia.phone || null,
+          email: academia.email,
+          isActive: academia.isActive
+        },
+        dashboard,
+        estatisticas: {
+          totalAlunos: alunos.length,
+          totalPersonais: personais.length,
+          engajamento: engajamento,
+          aniversariantes: aniversariantes.length,
+          renovacoes: renovacoes.length
+        },
+        alunos: alunos,
+        personais: personais
+      });
+    } catch (error) {
+      console.error("Error fetching hub data:", error);
+      res.status(500).json({ message: "Failed to fetch hub data", error: error.message });
+    }
+  });
+
+  // Rota temporária para deletar membros incorretos da Gym Power
+  app.post('/api/test/delete-gym-power-incorrect-members', async (req, res) => {
+    try {
+      const gymId = "b6bbeace-cf85-437a-8aba-07abcd330f7a"; // Gym Power
+      
+      // IDs dos alunos que NÃO pertencem à Gym Power (da Fitness Plus Academia)
+      const incorrectStudentIds = [
+        "12a2fb33-cb0e-4544-8f65-8c953b19c637", // ana.silva@fitnessplus.com
+        "24ea2aca-d19e-48ce-9616-cd421d495744", // carlos.santos@fitnessplus.com
+        "19262acf-3a93-4069-b9ea-8564efc8b1d6", // maria.oliveira@fitnessplus.com
+        "626f41df-1544-4873-9ce8-39b9d3b36d68", // joao.ferreira@fitnessplus.com
+        "fe3bddd1-29e5-4804-b6db-7991e7a67e03", // lucia.costa@fitnessplus.com
+        "8d384e56-adc5-4b86-a46c-bd2436d72db3", // pedro.almeida@fitnessplus.com
+        "c67c5b9e-0fe0-4e34-991b-96c92a9fe265", // fernanda.rodrigues@fitnessplus.com
+        "80d862f8-98bf-4439-a4aa-572215b2aed7"  // rafael.mendes@fitnessplus.com
+      ];
+      
+      const deletedMembers = [];
+      const errors = [];
+      
+      for (const studentId of incorrectStudentIds) {
+        try {
+          // Deletar da tabela gymMembers
+          if (db) {
+            await db.delete(gymMembers)
+              .where(and(
+                eq(gymMembers.gymId, gymId),
+                eq(gymMembers.memberId, studentId)
+              ));
+            
+            deletedMembers.push({
+              id: studentId,
+              gymId: gymId
+            });
+          }
+        } catch (error) {
+          console.error(`Erro ao deletar aluno ${studentId}:`, error);
+          errors.push({
+            id: studentId,
+            error: error.message
+          });
+        }
+      }
+      
+      res.json({
+        success: true,
+        message: `${deletedMembers.length} membros incorretos removidos da Gym Power`,
+        deletedMembers: deletedMembers,
+        errors: errors,
+        totalDeleted: deletedMembers.length,
+        totalErrors: errors.length
+      });
+    } catch (error) {
+      console.error("Error deleting Gym Power incorrect members:", error);
+      res.status(500).json({ message: "Erro ao deletar membros incorretos da Gym Power", error: error.message });
+    }
+  });
+
+  // Rota temporária para limpar associações incorretas da Gym Power
+  app.post('/api/test/clean-gym-power-members', async (req, res) => {
+    try {
+      const gymId = "b6bbeace-cf85-437a-8aba-07abcd330f7a"; // Gym Power
+      
+      // IDs dos alunos que NÃO pertencem à Gym Power (da Fitness Plus Academia)
+      const incorrectStudentIds = [
+        "12a2fb33-cb0e-4544-8f65-8c953b19c637", // ana.silva@fitnessplus.com
+        "24ea2aca-d19e-48ce-9616-cd421d495744", // carlos.santos@fitnessplus.com
+        "19262acf-3a93-4069-b9ea-8564efc8b1d6", // maria.oliveira@fitnessplus.com
+        "626f41df-1544-4873-9ce8-39b9d3b36d68", // joao.ferreira@fitnessplus.com
+        "fe3bddd1-29e5-4804-b6db-7991e7a67e03", // lucia.costa@fitnessplus.com
+        "8d384e56-adc5-4b86-a46c-bd2436d72db3", // pedro.almeida@fitnessplus.com
+        "c67c5b9e-0fe0-4e34-991b-96c92a9fe265", // fernanda.rodrigues@fitnessplus.com
+        "80d862f8-98bf-4439-a4aa-572215b2aed7"  // rafael.mendes@fitnessplus.com
+      ];
+      
+      const removedMembers = [];
+      const errors = [];
+      
+      for (const studentId of incorrectStudentIds) {
+        try {
+          // Buscar e remover membro da tabela gymMembers
+          const members = await storage.getGymMembers(gymId);
+          const memberToRemove = members.find(m => m.id === studentId);
+          
+          if (memberToRemove) {
+            // Aqui precisaríamos de uma função para remover membro, mas por enquanto vamos apenas reportar
+            removedMembers.push({
+              id: studentId,
+              email: memberToRemove.email,
+              name: memberToRemove.name
+            });
+          }
+        } catch (error) {
+          console.error(`Erro ao remover aluno ${studentId}:`, error);
+          errors.push({
+            id: studentId,
+            error: error.message
+          });
+        }
+      }
+      
+      res.json({
+        success: true,
+        message: `Identificados ${removedMembers.length} membros incorretos na Gym Power`,
+        removedMembers: removedMembers,
+        errors: errors,
+        totalRemoved: removedMembers.length,
+        totalErrors: errors.length
+      });
+    } catch (error) {
+      console.error("Error cleaning Gym Power members:", error);
+      res.status(500).json({ message: "Erro ao limpar membros da Gym Power", error: error.message });
+    }
+  });
+
+  // Rota temporária para associar alunos específicos da Gym Power
+  app.post('/api/test/associate-gym-power-students', async (req, res) => {
+    try {
+      const gymId = "b6bbeace-cf85-437a-8aba-07abcd330f7a"; // Gym Power
+      
+      // IDs dos alunos da Gym Power (baseado na consulta anterior)
+      const studentIds = [
+        "bf5145b5-c1fb-4302-9622-434df2fd44a0", // ana+seed0@teste.com
+        "1a17e53d-6146-45af-9e3e-912b7221585a", // diego+seed3@teste.com
+        "a69aa3cf-dddc-4174-a3b8-83ef42bc9537", // guilherme+seed6@teste.com
+        "f7e900bd-b574-42f0-94b3-9191a8fdf5d5"  // julia+seed9@teste.com
+      ];
+      
+      const associatedStudents = [];
+      const errors = [];
+      
+      for (const studentId of studentIds) {
+        try {
+          const gymMemberData = {
+            id: randomUUID(),
+            gymId: gymId,
+            memberId: studentId,
+            membershipType: 'mensal',
+            isActive: true,
+            startDate: new Date(),
+            joinedAt: new Date()
+          };
+          
+          const newMember = await storage.addGymMember(gymMemberData);
+          associatedStudents.push({
+            id: studentId,
+            gymMemberId: newMember.id,
+            gymId: gymId,
+            membershipType: 'mensal'
+          });
+        } catch (error) {
+          console.error(`Erro ao associar aluno ${studentId}:`, error);
+          errors.push({
+            id: studentId,
+            error: error.message
+          });
+        }
+      }
+      
+      res.json({
+        success: true,
+        message: `${associatedStudents.length} alunos da Gym Power associados à tabela gymMembers com sucesso`,
+        students: associatedStudents,
+        errors: errors,
+        totalAssociated: associatedStudents.length,
+        totalErrors: errors.length
+      });
+    } catch (error) {
+      console.error("Error associating Gym Power students:", error);
+      res.status(500).json({ message: "Erro ao associar alunos da Gym Power", error: error.message });
+    }
+  });
+
+  // Rota temporária para associar alunos à tabela gymMembers
+  app.post('/api/test/associate-students-gym-members', async (req, res) => {
+    try {
+      const { gymId } = req.body;
+      
+      if (!gymId) {
+        return res.status(400).json({ message: "gymId é obrigatório" });
+      }
+
+      // IDs dos alunos criados anteriormente
+      const studentIds = [
+        "12a2fb33-cb0e-4544-8f65-8c953b19c637", // ana.silva@fitnessplus.com
+        "24ea2aca-d19e-48ce-9616-cd421d495744", // carlos.santos@fitnessplus.com
+        "19262acf-3a93-4069-b9ea-8564efc8b1d6", // maria.oliveira@fitnessplus.com
+        "626f41df-1544-4873-9ce8-39b9d3b36d68", // joao.ferreira@fitnessplus.com
+        "fe3bddd1-29e5-4804-b6db-7991e7a67e03", // lucia.costa@fitnessplus.com
+        "8d384e56-adc5-4b86-a46c-bd2436d72db3", // pedro.almeida@fitnessplus.com
+        "c67c5b9e-0fe0-4e34-991b-96c92a9fe265", // fernanda.rodrigues@fitnessplus.com
+        "80d862f8-98bf-4439-a4aa-572215b2aed7"  // rafael.mendes@fitnessplus.com
+      ];
+
+      const associatedStudents = [];
+      const errors = [];
+
+      // Associar cada aluno à tabela gymMembers
+      for (const studentId of studentIds) {
+        try {
+          const gymMemberData = {
+            gymId: gymId,
+            memberId: studentId,
+            membershipType: "mensal",
+            startDate: new Date(),
+            endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
+            isActive: true
+          };
+
+          const newGymMember = await storage.addGymMember(gymMemberData);
+          if (newGymMember) {
+            associatedStudents.push({
+              id: studentId,
+              gymMemberId: newGymMember.id,
+              gymId: gymId,
+              membershipType: "mensal"
+            });
+          }
+        } catch (error) {
+          console.error(`Erro ao associar aluno ${studentId} à gymMembers:`, error);
+          errors.push({
+            id: studentId,
+            error: error.message
+          });
+        }
+      }
+
+      res.json({ 
+        success: true, 
+        message: `${associatedStudents.length} alunos associados à tabela gymMembers com sucesso`,
+        students: associatedStudents,
+        errors: errors,
+        totalAssociated: associatedStudents.length,
+        totalErrors: errors.length
+      });
+    } catch (error) {
+      console.error("Error associating students to gym members:", error);
+      res.status(500).json({ message: "Erro ao associar alunos à gymMembers", error: error.message });
+    }
+  });
+
+  // Rota temporária para gerar alunos para a academia
+  app.post('/api/test/create-students', async (req, res) => {
+    try {
+      const { gymId, count = 8 } = req.body;
+      
+      if (!gymId) {
+        return res.status(400).json({ message: "gymId é obrigatório" });
+      }
+
+      // Dados dos alunos para gerar
+      const studentsData = [
+        {
+          email: "ana.silva@fitnessplus.com",
+          firstName: "Ana",
+          lastName: "Silva",
+          userType: "aluno",
+          phone: "(11) 99999-0001",
+          address: "Rua das Flores, 100",
+          city: "São Paulo",
+          state: "SP",
+          zipCode: "01234-100",
+          height: 165,
+          weight: 60,
+          fitnessGoal: "emagrecimento",
+          fitnessLevel: "iniciante",
+          membershipType: "mensal",
+          membershipStart: new Date(),
+          membershipEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 dias
+          gymId: gymId,
+          isActive: true
+        },
+        {
+          email: "carlos.santos@fitnessplus.com",
+          firstName: "Carlos",
+          lastName: "Santos",
+          userType: "aluno",
+          phone: "(11) 99999-0002",
+          address: "Rua das Flores, 101",
+          city: "São Paulo",
+          state: "SP",
+          zipCode: "01234-101",
+          height: 180,
+          weight: 85,
+          fitnessGoal: "hipertrofia",
+          fitnessLevel: "intermediário",
+          membershipType: "mensal",
+          membershipStart: new Date(),
+          membershipEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          gymId: gymId,
+          isActive: true
+        },
+        {
+          email: "maria.oliveira@fitnessplus.com",
+          firstName: "Maria",
+          lastName: "Oliveira",
+          userType: "aluno",
+          phone: "(11) 99999-0003",
+          address: "Rua das Flores, 102",
+          city: "São Paulo",
+          state: "SP",
+          zipCode: "01234-102",
+          height: 160,
+          weight: 55,
+          fitnessGoal: "resistência",
+          fitnessLevel: "avançado",
+          membershipType: "trimestral",
+          membershipStart: new Date(),
+          membershipEnd: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000), // 90 dias
+          gymId: gymId,
+          isActive: true
+        },
+        {
+          email: "joao.ferreira@fitnessplus.com",
+          firstName: "João",
+          lastName: "Ferreira",
+          userType: "aluno",
+          phone: "(11) 99999-0004",
+          address: "Rua das Flores, 103",
+          city: "São Paulo",
+          state: "SP",
+          zipCode: "01234-103",
+          height: 175,
+          weight: 70,
+          fitnessGoal: "força",
+          fitnessLevel: "intermediário",
+          membershipType: "mensal",
+          membershipStart: new Date(),
+          membershipEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          gymId: gymId,
+          isActive: true
+        },
+        {
+          email: "lucia.costa@fitnessplus.com",
+          firstName: "Lúcia",
+          lastName: "Costa",
+          userType: "aluno",
+          phone: "(11) 99999-0005",
+          address: "Rua das Flores, 104",
+          city: "São Paulo",
+          state: "SP",
+          zipCode: "01234-104",
+          height: 155,
+          weight: 50,
+          fitnessGoal: "emagrecimento",
+          fitnessLevel: "iniciante",
+          membershipType: "mensal",
+          membershipStart: new Date(),
+          membershipEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          gymId: gymId,
+          isActive: true
+        },
+        {
+          email: "pedro.almeida@fitnessplus.com",
+          firstName: "Pedro",
+          lastName: "Almeida",
+          userType: "aluno",
+          phone: "(11) 99999-0006",
+          address: "Rua das Flores, 105",
+          city: "São Paulo",
+          state: "SP",
+          zipCode: "01234-105",
+          height: 185,
+          weight: 90,
+          fitnessGoal: "hipertrofia",
+          fitnessLevel: "avançado",
+          membershipType: "semestral",
+          membershipStart: new Date(),
+          membershipEnd: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000), // 180 dias
+          gymId: gymId,
+          isActive: true
+        },
+        {
+          email: "fernanda.rodrigues@fitnessplus.com",
+          firstName: "Fernanda",
+          lastName: "Rodrigues",
+          userType: "aluno",
+          phone: "(11) 99999-0007",
+          address: "Rua das Flores, 106",
+          city: "São Paulo",
+          state: "SP",
+          zipCode: "01234-106",
+          height: 170,
+          weight: 65,
+          fitnessGoal: "resistência",
+          fitnessLevel: "intermediário",
+          membershipType: "mensal",
+          membershipStart: new Date(),
+          membershipEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          gymId: gymId,
+          isActive: true
+        },
+        {
+          email: "rafael.mendes@fitnessplus.com",
+          firstName: "Rafael",
+          lastName: "Mendes",
+          userType: "aluno",
+          phone: "(11) 99999-0008",
+          address: "Rua das Flores, 107",
+          city: "São Paulo",
+          state: "SP",
+          zipCode: "01234-107",
+          height: 178,
+          weight: 75,
+          fitnessGoal: "força",
+          fitnessLevel: "iniciante",
+          membershipType: "mensal",
+          membershipStart: new Date(),
+          membershipEnd: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          gymId: gymId,
+          isActive: true
+        }
+      ];
+
+      const createdStudents = [];
+      const errors = [];
+
+      // Criar cada aluno no banco
+      for (const studentData of studentsData.slice(0, count)) {
+        try {
+          const newStudent = await storage.createUser(studentData);
+          if (newStudent) {
+            createdStudents.push({
+              id: newStudent.id,
+              email: newStudent.email,
+              name: `${newStudent.firstName} ${newStudent.lastName}`,
+              userType: newStudent.userType,
+              gymId: newStudent.gymId
+            });
+          }
+        } catch (error) {
+          console.error(`Erro ao criar aluno ${studentData.email}:`, error);
+          errors.push({
+            email: studentData.email,
+            error: error.message
+          });
+        }
+      }
+
+      res.json({ 
+        success: true, 
+        message: `${createdStudents.length} alunos criados com sucesso`,
+        students: createdStudents,
+        errors: errors,
+        totalCreated: createdStudents.length,
+        totalErrors: errors.length
+      });
+    } catch (error) {
+      console.error("Error creating students:", error);
+      res.status(500).json({ message: "Erro ao criar alunos", error: error.message });
+    }
+  });
 
   const httpServer = createServer(app);
   

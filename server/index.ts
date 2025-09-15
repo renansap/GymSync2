@@ -74,6 +74,8 @@ app.use((req, res, next) => {
   console.log('📝 Configurando rotas de autenticação...');
   setupAuthRoutes(app);
   // Setup Replit Auth only if environment variables are available
+  // Temporariamente desabilitado para teste
+  /*
   if (env.REPLIT_DOMAINS && env.REPL_ID) {
     console.log('📝 Configurando Replit Auth...');
     try {
@@ -85,6 +87,8 @@ app.use((req, res, next) => {
   } else {
     console.log('ℹ️ Replit Auth desabilitado (variáveis de ambiente não encontradas)');
   }
+  */
+  console.log('ℹ️ Replit Auth temporariamente desabilitado para teste');
   console.log('✅ Authentication setup completed');
   console.log('🔍 Verificando configuração de sessões...');
   console.log('📋 Session middleware configurado:', !!app._router.stack.find((layer: any) => layer.name === 'session'));

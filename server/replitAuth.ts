@@ -199,9 +199,12 @@ export async function setupAuth(app: Express) {
   // Get domains from environment variable
       const domains = REPLIT_DOMAINS!.split(",");
   
-  // Add localhost for development if not already present
+  // Add localhost and 127.0.0.1 for development if not already present
   if (!domains.includes('localhost')) {
     domains.push('localhost');
+  }
+  if (!domains.includes('127.0.0.1')) {
+    domains.push('127.0.0.1');
   }
   
   console.log('🌐 Domains to configure:', domains);
