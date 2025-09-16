@@ -180,8 +180,8 @@ export const setupAuthRoutes = (app: express.Application) => {
         console.error("Erro no logout:", err);
         return res.status(500).json({ message: "Erro ao fazer logout" });
       }
-      // Redirecionar para o portal principal após o logout
-      res.redirect('/');
+      // Retornar sucesso em JSON para o frontend navegar manualmente
+      res.json({ message: "Logout realizado com sucesso" });
     });
   });
 

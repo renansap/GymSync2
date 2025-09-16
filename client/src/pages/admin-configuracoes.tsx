@@ -5,9 +5,18 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import BottomNavigation from "../components/bottom-navigation";
 import { ArrowLeft, Settings, Mail, Send, Shield, Database, FileText, Activity, Bell, UserCheck } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 
 export default function AdminConfiguracoes() {
+  const [, setLocation] = useLocation();
+  
+  const handleLogout = () => {
+    fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+      .then(() => {
+        setLocation('/login');
+      })
+      .catch(console.error);
+  };
   // Check admin authentication
   const { data: adminAuth, isLoading: isLoadingAdminAuth } = useQuery<{ authenticated: boolean }>({
     queryKey: ["/api/admin/check"],
@@ -121,7 +130,7 @@ export default function AdminConfiguracoes() {
               <Button 
                 variant="outline"
                 size="sm"
-                onClick={() => window.location.href = "/api/logout"}
+                onClick={handleLogout}
                 data-testid="button-logout"
               >
                 Sair

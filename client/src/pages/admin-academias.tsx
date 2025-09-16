@@ -12,14 +12,23 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import BottomNavigation from "../components/bottom-navigation";
 import { ArrowLeft, Plus, Edit, Trash2, Building2, Users, MapPin, Phone, Mail, Copy, Check, Shield } from "lucide-react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import type { Gym, InsertGym } from "@shared/schema";
 
 export default function AdminAcademias() {
+  const [, setLocation] = useLocation();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingGym, setEditingGym] = useState<Gym | null>(null);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const { toast } = useToast();
+  
+  const handleLogout = () => {
+    fetch('/api/auth/logout', { method: 'POST', credentials: 'include' })
+      .then(() => {
+        setLocation('/login');
+      })
+      .catch(console.error);
+  };
 
   // Check admin authentication
   const { data: adminAuth, isLoading: isLoadingAdminAuth } = useQuery<{ authenticated: boolean }>({
@@ -302,7 +311,7 @@ export default function AdminAcademias() {
               <Button 
                 variant="outline"
                 size="sm"
-                onClick={() => window.location.href = "/api/logout"}
+                onClick={handleLogout}
                 data-testid="button-logout"
               >
                 Sair

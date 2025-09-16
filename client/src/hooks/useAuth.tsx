@@ -78,9 +78,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Logout mutation
   const logoutMutation = useMutation({
     mutationFn: async () => {
-      // Use the Replit Auth logout route
-      window.location.href = '/api/logout';
-      return { success: true };
+      // Use the consistent auth logout route
+      const response = await fetch('/api/auth/logout', { 
+        method: 'POST', 
+        credentials: 'include' 
+      });
+      
+      if (!response.ok) {
+        throw new Error('Erro ao fazer logout');
+      }
+      
+      return await response.json();
     },
     onSuccess: () => {
       queryClient.setQueryData(['/api/auth/me'], null);
@@ -89,6 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         title: "Logout realizado com sucesso!",
         description: "Até logo!",
       });
+      // Navigate to login page
+      window.location.href = '/login';
     },
     onError: (error: Error) => {
       toast({
