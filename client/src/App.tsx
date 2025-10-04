@@ -25,6 +25,7 @@ import MultiLogin from "./pages/multi-login";
 import Login from "./pages/login";
 import Register from "./pages/register";
 import DefinirSenha from "./pages/definir-senha";
+import SelectGym from "./pages/select-gym";
 
 function Router() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -53,6 +54,9 @@ function Router() {
       
       {/* Password setup page - accessible without auth */}
       <Route path="/definir-senha" component={DefinirSenha} />
+      
+      {/* Gym selection page - accessible with auth */}
+      <Route path="/select-gym" component={SelectGym} />
       
       {/* Admin routes - accessible without main auth */}
       <Route path="/admin/login" component={AdminLogin} />
