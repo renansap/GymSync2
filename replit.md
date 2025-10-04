@@ -4,6 +4,8 @@
 
 GymSync is a comprehensive fitness platform that serves three distinct user types: students (alunos), personal trainers, and gyms. The application provides AI-powered workout generation, session tracking, and management features tailored to each user role. Built as a full-stack web application with a modern React frontend and Express.js backend, it integrates OpenAI for intelligent workout recommendations and uses PostgreSQL for data persistence.
 
+The platform now supports multi-academy access architecture, allowing super admin users to manage and switch between multiple gym locations seamlessly.
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
@@ -43,6 +45,14 @@ The backend implements a service-oriented architecture with separate modules for
 - **Session Storage**: PostgreSQL-backed session store for authentication persistence
 
 The database schema supports multi-tenant architecture with user types, workout management, exercise libraries, and session tracking.
+
+### Multi-Academy Access Architecture
+- **Access Control**: `gym_access` table tracks which users have access to which gyms with specific roles (owner, manager, staff, personal)
+- **Active Gym Selection**: Users with multiple gym access can select and switch between academies via `activeGymId` field
+- **Super Admin Support**: Admin users (userType="admin") bypass gym_access table and have access to all academies
+- **Smart Redirects**: Users without an active gym are automatically redirected to `/select-gym` page
+- **Gym Switcher**: Header component allows quick switching between accessible academies
+- **Test Data**: 3 academias created (Elite Fitness, PowerGym, FitLife Centro) with `academia@teste.com` as super admin
 
 ### Authentication and Authorization
 - **Provider**: Replit Auth using OpenID Connect
