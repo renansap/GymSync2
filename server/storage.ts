@@ -29,6 +29,9 @@ import {
   type InsertEmailTemplate,
   type GymAccess,
   type InsertGymAccess,
+  type GymPlan,
+  type InsertGymPlan,
+  type UpdateGymPlan,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -111,6 +114,13 @@ export interface IStorage {
   addGymAccess(data: InsertGymAccess): Promise<GymAccess>;
   removeGymAccess(id: string): Promise<boolean>;
   setActiveGym(userId: string, gymId: string | null): Promise<User>;
+  
+  // Gym Plans operations
+  getGymPlans(gymId: string): Promise<GymPlan[]>;
+  getGymPlan(planId: string): Promise<GymPlan | undefined>;
+  createGymPlan(planData: InsertGymPlan): Promise<GymPlan>;
+  updateGymPlan(planId: string, planData: UpdateGymPlan): Promise<GymPlan | undefined>;
+  deleteGymPlan(planId: string): Promise<boolean>;
 }
 
 export class MemStorage implements IStorage {
@@ -797,6 +807,43 @@ export class MemStorage implements IStorage {
 
     this.users.set(userId, updatedUser);
     return updatedUser;
+  }
+
+  // Gym Plans operations (memory - not used but required by interface)
+  private gymPlansList: Map<string, GymPlan> = new Map();
+
+  async getGymPlans(gymId: string): Promise<GymPlan[]> {
+    return Array.from(this.gymPlansList.values()).filter(p => p.gymId === gymId);
+  }
+
+  async getGymPlan(planId: string): Promise<GymPlan | undefined> {
+    return this.gymPlansList.get(planId);
+  }
+
+  async createGymPlan(planData: InsertGymPlan): Promise<GymPlan> {
+    const plan: GymPlan = {
+      ...planData,
+      id: randomUUID(),
+      createdAt: new Date(),
+    };
+    this.gymPlansList.set(plan.id, plan);
+    return plan;
+  }
+
+  async updateGymPlan(planId: string, planData: UpdateGymPlan): Promise<GymPlan | undefined> {
+    const plan = this.gymPlansList.get(planId);
+    if (!plan) return undefined;
+    
+    const updatedPlan: GymPlan = {
+      ...plan,
+      ...planData,
+    };
+    this.gymPlansList.set(planId, updatedPlan);
+    return updatedPlan;
+  }
+
+  async deleteGymPlan(planId: string): Promise<boolean> {
+    return this.gymPlansList.delete(planId);
   }
 }
 
@@ -1538,6 +1585,81 @@ export class DatabaseStorage implements IStorage {
       .returning();
     
     return updatedUser;
+  }
+
+  // Gym Plans operations
+  async getGymPlans(gymId: string): Promise<GymPlan[]> {
+    if (!db) throw new Error("Database not available");
+    
+    try {
+      const plans = await db
+        .select()
+        .from(gymPlans)
+        .where(eq(gymPlans.gymId, gymId))
+        .orderBy(desc(gymPlans.createdAt));
+      return plans;
+    } catch (error) {
+      console.error('Error getting gym plans:', error);
+      return [];
+    }
+  }
+
+  async getGymPlan(planId: string): Promise<GymPlan | undefined> {
+    if (!db) throw new Error("Database not available");
+    
+    try {
+      const [plan] = await db
+        .select()
+        .from(gymPlans)
+        .where(eq(gymPlans.id, planId));
+      return plan;
+    } catch (error) {
+      console.error('Error getting gym plan:', error);
+      return undefined;
+    }
+  }
+
+  async createGymPlan(planData: InsertGymPlan): Promise<GymPlan> {
+    if (!db) throw new Error("Database not available");
+    
+    const [plan] = await db
+      .insert(gymPlans)
+      .values({
+        ...planData,
+        id: randomUUID(),
+        createdAt: new Date(),
+      })
+      .returning();
+    
+    return plan;
+  }
+
+  async updateGymPlan(planId: string, planData: UpdateGymPlan): Promise<GymPlan | undefined> {
+    if (!db) throw new Error("Database not available");
+    
+    try {
+      const [updatedPlan] = await db
+        .update(gymPlans)
+        .set(planData)
+        .where(eq(gymPlans.id, planId))
+        .returning();
+      return updatedPlan;
+    } catch (error) {
+      console.error('Error updating gym plan:', error);
+      return undefined;
+    }
+  }
+
+  async deleteGymPlan(planId: string): Promise<boolean> {
+    if (!db) throw new Error("Database not available");
+    
+    try {
+      await db.delete(gymPlans).where(eq(gymPlans.id, planId));
+      return true;
+    } catch (error) {
+      console.error('Error deleting gym plan:', error);
+      return false;
+    }
   }
 }
 
