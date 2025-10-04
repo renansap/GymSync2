@@ -400,9 +400,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Academia module routes
   const requireAcademiaRole = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    const user = req.user;
+    let user = req.user;
+    let gymId = null;
+    
+    // Verificar se tem autenticação principal
     if (!user) {
-      return res.status(401).json({ message: "Unauthorized" });
+      // Se não tiver autenticação principal, verificar se tem sessão admin
+      const isAdminAuthenticated = (req.session as any)?.adminAuthenticated;
+      
+      if (isAdminAuthenticated) {
+        // Buscar usuário admin da sessão
+        const adminEmail = (req.session as any)?.adminUser?.email;
+        if (adminEmail) {
+          user = await storage.getUserByEmail(adminEmail);
+        }
+      }
+      
+      if (!user) {
+        return res.status(401).json({ message: "Unauthorized" });
+      }
     }
     
     // Verificar se o usuário é do tipo 'academia' OU 'admin' OU tem acesso via gym_access
@@ -420,14 +436,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // 1. activeGymId (academia selecionada pelo usuário)
     // 2. gymId do usuário
     // 3. id do usuário (para academias legacy)
-    let gymId = user.activeGymId || user.gymId || user.id;
+    gymId = user.activeGymId || user.gymId || user.id;
     
     if (!gymId) {
       return res.status(400).json({ message: "Academia não identificada" });
     }
     
-    // Adicionar gymId ao request para uso nas rotas
+    // Adicionar gymId e user ao request para uso nas rotas
     (req as any).gymId = gymId;
+    if (!req.user) {
+      req.user = user;
+    }
     next();
   };
 
@@ -502,7 +521,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Simple admin credentials (in production, use proper hashing)
       if (username === 'admin' && password === 'admin123') {
         (req.session as any).adminAuthenticated = true;
-        res.json({ success: true, message: "Admin login successful" });
+        (req.session as any).adminUser = { 
+          email: 'admin@teste.com',
+          username: 'admin' 
+        };
+        
+        // Force session save
+        req.session.save((err) => {
+          if (err) {
+            console.error("Session save error:", err);
+            return res.status(500).json({ message: "Failed to save session" });
+          }
+          console.log('✅ Admin session saved successfully');
+          res.json({ success: true, message: "Admin login successful" });
+        });
       } else {
         res.status(401).json({ message: "Invalid admin credentials" });
       }
@@ -706,7 +738,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ===== ACADEMIA PLANOS =====
   // Get all plans for a gym
-  app.get('/api/academia/planos', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
+  app.get('/api/academia/planos', requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
     try {
       const gymId = (req as any).gymId;
       const plans = await storage.getGymPlans(gymId);
@@ -718,7 +750,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create a new plan for a gym
-  app.post('/api/academia/planos', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
+  app.post('/api/academia/planos', requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
     try {
       const gymId = (req as any).gymId;
       const { insertGymPlanSchema } = await import("@shared/schema");
@@ -737,7 +769,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Update a plan
-  app.put('/api/academia/planos/:planId', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
+  app.put('/api/academia/planos/:planId', requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
     try {
       const { planId } = req.params;
       const gymId = (req as any).gymId;
@@ -771,7 +803,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Delete a plan
-  app.delete('/api/academia/planos/:planId', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
+  app.delete('/api/academia/planos/:planId', requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
     try {
       const { planId } = req.params;
       const gymId = (req as any).gymId;
@@ -1106,6 +1138,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/auth/me', async (req, res) => {
     try {
       let userId: string | undefined;
+      let userEmail: string | undefined;
       
       // Check for Replit Auth (OAuth) - user is in req.user with claims
       if (req.isAuthenticated && req.isAuthenticated() && req.user && (req.user as any).claims) {
@@ -1115,12 +1148,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       else if ((req.session as any)?.userId) {
         userId = (req.session as any).userId as string;
       }
+      // Check for admin auth - adminAuthenticated in session
+      else if ((req.session as any)?.adminAuthenticated && (req.session as any)?.adminUser?.email) {
+        userEmail = (req.session as any).adminUser.email;
+      }
       
-      if (!userId) {
+      if (!userId && !userEmail) {
         return res.status(401).json({ message: "Não autenticado" });
       }
       
-      const user = await storage.getUser(userId);
+      let user;
+      if (userId) {
+        user = await storage.getUser(userId);
+      } else if (userEmail) {
+        user = await storage.getUserByEmail(userEmail);
+      }
+      
       if (!user) {
         return res.status(401).json({ message: "Usuário não encontrado" });
       }
@@ -1132,7 +1175,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           firstName: user.firstName, 
           lastName: user.lastName, 
           userType: user.userType,
-          gymId: user.gymId // Incluir gymId para multi-tenant
+          gymId: user.gymId, // Incluir gymId para multi-tenant
+          activeGymId: user.activeGymId // Incluir activeGymId
         } 
       });
     } catch (error) {

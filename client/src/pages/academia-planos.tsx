@@ -45,7 +45,6 @@ export default function AcademiaPlanos() {
 
   const { data: planos = [], isLoading: isLoadingPlanos } = useQuery<GymPlan[]>({
     queryKey: ["/api/academia/planos"],
-    enabled: isAuthenticated,
   });
 
   const createPlanoMutation = useMutation({

@@ -11,6 +11,9 @@ import "./db"; // Initialize database connection
 
 const app = express();
 
+// Trust proxy (required for Replit - enables proper session cookies and HTTPS detection)
+app.set('trust proxy', 1);
+
 // Apply security middlewares
 app.use(helmetConfig);
 app.use(corsConfig);
@@ -28,10 +31,10 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: isProduction,
+    secure: true, // Always secure in Replit (HTTPS)
     httpOnly: true,
     maxAge: 24 * 60 * 60 * 1000, // 24 horas
-    sameSite: 'lax'
+    sameSite: 'none' // Required for cross-origin requests
   },
   name: 'gymsync.sid'
 }));

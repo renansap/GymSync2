@@ -44,7 +44,8 @@ export function getSession() {
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
-      secure: false, // Set to false for local development
+      secure: true, // Set to true for Replit (HTTPS)
+      sameSite: 'none', // Required for cross-origin requests
       maxAge: sessionTtl,
     },
   });
