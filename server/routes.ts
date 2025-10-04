@@ -831,6 +831,146 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
+  // ===== PERSONAL TRAINERS WITH MULTIPLE GYMS =====
+  // Create a new personal trainer
+  app.post('/api/personals', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { email, firstName, lastName, name, phone, cref, specializations, birthDate, gymIds } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({ message: "Email é obrigatório" });
+      }
+      
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        return res.status(409).json({ message: "Email já está em uso" });
+      }
+      
+      const personal = await storage.createPersonal({
+        email,
+        firstName,
+        lastName,
+        name,
+        phone,
+        cref,
+        specializations: Array.isArray(specializations) ? specializations : [],
+        birthDate
+      });
+      
+      if (gymIds && Array.isArray(gymIds) && gymIds.length > 0) {
+        for (const gymId of gymIds) {
+          await storage.linkPersonalToGym(personal.id, gymId);
+        }
+      }
+      
+      try {
+        const welcomeToken = emailService.generatePasswordResetToken();
+        const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        
+        await storage.setPasswordResetToken(personal.id, welcomeToken, expires);
+        
+        const template = await storage.getEmailTemplateByType('personal', 'welcome');
+        if (template) {
+          await emailService.sendWelcomeEmail(
+            personal.email!,
+            personal.name!,
+            'personal',
+            welcomeToken,
+            template
+          );
+        }
+      } catch (emailError) {
+        console.error('Error sending welcome email:', emailError);
+      }
+      
+      const gyms = await storage.getGymsForPersonal(personal.id);
+      
+      res.json({
+        ...personal,
+        gyms
+      });
+    } catch (error) {
+      console.error("Error creating personal:", error);
+      res.status(500).json({ message: "Failed to create personal trainer" });
+    }
+  });
+  
+  // Get personals for a specific gym
+  app.get('/api/personals/gym/:gymId', isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { gymId } = req.params;
+      const personals = await storage.getPersonalsByGym(gymId);
+      
+      const personalsWithGyms = await Promise.all(
+        personals.map(async (personal) => {
+          const gyms = await storage.getGymsForPersonal(personal.id);
+          return {
+            ...personal,
+            gyms
+          };
+        })
+      );
+      
+      res.json(personalsWithGyms);
+    } catch (error) {
+      console.error("Error fetching personals:", error);
+      res.status(500).json({ message: "Failed to fetch personals" });
+    }
+  });
+  
+  // Get gyms for a specific personal
+  app.get('/api/personals/:personalId/gyms', isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { personalId } = req.params;
+      const gyms = await storage.getGymsForPersonal(personalId);
+      res.json(gyms);
+    } catch (error) {
+      console.error("Error fetching gyms for personal:", error);
+      res.status(500).json({ message: "Failed to fetch gyms" });
+    }
+  });
+  
+  // Link personal to gym
+  app.post('/api/personals/:personalId/gyms/:gymId', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { personalId, gymId } = req.params;
+      
+      const personal = await storage.getUser(personalId);
+      if (!personal || personal.userType !== 'personal') {
+        return res.status(404).json({ message: "Personal trainer não encontrado" });
+      }
+      
+      const gym = await storage.getGym(gymId);
+      if (!gym) {
+        return res.status(404).json({ message: "Academia não encontrada" });
+      }
+      
+      const access = await storage.linkPersonalToGym(personalId, gymId);
+      res.json({ message: "Personal vinculado à academia com sucesso", access });
+    } catch (error) {
+      console.error("Error linking personal to gym:", error);
+      res.status(500).json({ message: "Failed to link personal to gym" });
+    }
+  });
+  
+  // Unlink personal from gym
+  app.delete('/api/personals/:personalId/gyms/:gymId', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { personalId, gymId } = req.params;
+      
+      const success = await storage.unlinkPersonalFromGym(personalId, gymId);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Vínculo não encontrado" });
+      }
+      
+      res.json({ message: "Personal desvinculado da academia com sucesso" });
+    } catch (error) {
+      console.error("Error unlinking personal from gym:", error);
+      res.status(500).json({ message: "Failed to unlink personal from gym" });
+    }
+  });
+
   // ===== HUB DA ACADEMIA =====
   // Rota principal do Hub da Academia
   app.get('/api/hub-academia', isAuthenticated, requireAcademiaHubAccess, async (req: AuthenticatedRequest, res) => {
