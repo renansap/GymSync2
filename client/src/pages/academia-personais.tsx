@@ -78,7 +78,7 @@ export default function AcademiaPersonais() {
       specializations: specializationsInput ? specializationsInput.split(',').map(s => s.trim()) : []
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/personals/gym"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/personals/gym", gymId] });
       queryClient.invalidateQueries({ queryKey: ["/api/academia/dashboard"] });
       setIsDialogOpen(false);
       form.reset();
@@ -103,7 +103,7 @@ export default function AcademiaPersonais() {
     mutationFn: ({ personalId, gymId }: { personalId: string, gymId: string }) =>
       apiRequest("POST", `/api/personals/${personalId}/gyms/${gymId}`, {}),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/personals/gym"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/personals/gym", gymId] });
       toast({
         title: "Academia vinculada!",
         description: "Personal vinculado à academia com sucesso.",
@@ -122,7 +122,7 @@ export default function AcademiaPersonais() {
     mutationFn: ({ personalId, gymId }: { personalId: string, gymId: string }) =>
       apiRequest("DELETE", `/api/personals/${personalId}/gyms/${gymId}`, {}),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/personals/gym"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/personals/gym", gymId] });
       toast({
         title: "Academia desvinculada!",
         description: "Personal desvinculado da academia com sucesso.",
