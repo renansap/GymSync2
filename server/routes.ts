@@ -158,7 +158,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } else if (userType === 'academia') {
         redirectUrl = '/hub-academia';
       } else if (userType === 'admin') {
-        redirectUrl = '/hub-academia';
+        // Para super admins, verificar se precisam selecionar academia
+        if (!user?.activeGymId) {
+          const availableGyms = await storage.getGymsForUser(userId);
+          if (availableGyms.length > 1) {
+            redirectUrl = '/select-gym';
+          } else if (availableGyms.length === 1) {
+            // Se tiver apenas uma academia, definir como ativa automaticamente
+            await storage.setActiveGym(userId, availableGyms[0].id);
+            redirectUrl = '/hub-academia';
+          } else {
+            redirectUrl = '/hub-academia';
+          }
+        } else {
+          redirectUrl = '/hub-academia';
+        }
       } else {
         redirectUrl = '/';
       }
@@ -409,7 +423,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   };
 
   // Hub da Academia - permite acesso para Academia e Admin
-  const requireAcademiaHubAccess = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  const requireAcademiaHubAccess = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     const user = req.user;
     if (!user) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -420,13 +434,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(403).json({ message: "Acesso restrito a academias e administradores" });
     }
     
-    // Para academias, o gymId é o próprio ID do usuário ou o gymId associado
-    // Para admins, pode acessar qualquer academia (gymId será passado via query param)
-    let gymId = user.gymId || user.id;
+    // Determinar gymId baseado na prioridade:
+    // 1. activeGymId (academia selecionada pelo usuário)
+    // 2. gymId da query (para compatibilidade)
+    // 3. gymId do usuário (fallback legado)
+    // 4. id do usuário (fallback final)
+    let gymId = user.activeGymId || user.gymId || user.id;
     
-    // Se for admin e tiver gymId na query, usar esse
-    if (user.userType === 'admin' && req.query.gymId) {
+    // Se tiver gymId na query, usar esse (sobrescreve activeGymId)
+    if (req.query.gymId) {
       gymId = req.query.gymId as string;
+    }
+    
+    // Para super admins sem academia ativa, verificar se têm academias disponíveis
+    if (user.userType === 'admin' && !user.activeGymId && !req.query.gymId) {
+      try {
+        const availableGyms = await storage.getGymsForUser(user.id);
+        
+        // Se tiver múltiplas academias, retornar erro pedindo para selecionar
+        if (availableGyms.length > 1) {
+          return res.status(400).json({ 
+            message: "Selecione uma academia",
+            requiresGymSelection: true
+          });
+        }
+        
+        // Se tiver apenas uma academia, usar essa automaticamente
+        if (availableGyms.length === 1) {
+          gymId = availableGyms[0].id;
+        }
+      } catch (error) {
+        console.error('Error checking available gyms:', error);
+      }
     }
     
     if (!gymId) {

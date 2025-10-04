@@ -16,6 +16,7 @@ import {
   Clock,
   Target
 } from 'lucide-react';
+import { GymSwitcher } from '@/components/GymSwitcher';
 
 interface HubData {
   academia: {
@@ -68,6 +69,16 @@ export default function HubAcademia() {
           setError('Acesso negado. Apenas academias e administradores podem acessar este hub.');
           return;
         }
+        
+        if (response.status === 400) {
+          const data = await response.json();
+          if (data.requiresGymSelection) {
+            // Redirecionar para a página de seleção de academia
+            setLocation('/select-gym');
+            return;
+          }
+        }
+        
         throw new Error('Erro ao carregar dados do hub');
       }
 
@@ -196,6 +207,7 @@ export default function HubAcademia() {
             </div>
             
             <div className="flex items-center space-x-4">
+              <GymSwitcher />
               <div className="text-right">
                 <p className="text-sm font-medium text-gray-900">{user.name}</p>
                 <p className="text-xs text-gray-500 capitalize">{user.userType}</p>
@@ -204,6 +216,7 @@ export default function HubAcademia() {
                 onClick={handleLogout}
                 className="p-2 text-gray-400 hover:text-gray-600 transition-colors"
                 title="Sair"
+                data-testid="button-logout"
               >
                 <LogOut className="w-5 h-5" />
               </button>
