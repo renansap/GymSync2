@@ -8,6 +8,12 @@ GymSync is a comprehensive fitness platform that serves three distinct user type
 
 Preferred communication style: Simple, everyday language.
 
+**Data Management**: 
+- NEVER use mock/placeholder data in the application
+- Always use real data from the PostgreSQL database
+- Avoid in-memory storage or fake data generators
+- All features must interact with the actual database through Drizzle ORM
+
 ## System Architecture
 
 ### Frontend Architecture
