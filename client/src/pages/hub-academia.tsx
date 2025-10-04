@@ -14,7 +14,8 @@ import {
   Activity,
   Star,
   Clock,
-  Target
+  Target,
+  CreditCard
 } from 'lucide-react';
 import { GymSwitcher } from '@/components/GymSwitcher';
 
@@ -168,6 +169,13 @@ export default function HubAcademia() {
       icon: UserCheck,
       color: 'bg-purple-500',
       href: '/academia-personais'
+    },
+    {
+      title: 'Planos',
+      description: 'Gerenciar planos de assinatura',
+      icon: CreditCard,
+      color: 'bg-cyan-500',
+      href: '/academia/planos'
     },
     {
       title: 'Engajamento',

@@ -389,7 +389,7 @@ export default function AcademiaPlanos() {
         )}
       </div>
 
-      <BottomNavigation userType="academia" />
+      <BottomNavigation activeView="academia" />
     </div>
   );
 }
