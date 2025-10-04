@@ -176,6 +176,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Gym Access routes
+  app.get('/api/gyms/available', isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+
+      const gyms = await storage.getGymsForUser(userId);
+      res.json(gyms);
+    } catch (error) {
+      console.error("Error fetching available gyms:", error);
+      res.status(500).json({ message: "Failed to fetch available gyms" });
+    }
+  });
+
+  app.post('/api/gyms/set-active', isAuthenticated, async (req: AuthenticatedRequest, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ message: "Usuário não autenticado" });
+      }
+
+      const { gymId } = req.body;
+      
+      // Validar se o gymId é válido (se fornecido)
+      if (gymId) {
+        const availableGyms = await storage.getGymsForUser(userId);
+        const hasAccess = availableGyms.some(gym => gym.id === gymId);
+        
+        if (!hasAccess) {
+          return res.status(403).json({ message: "Você não tem acesso a esta academia" });
+        }
+      }
+
+      const updatedUser = await storage.setActiveGym(userId, gymId || null);
+      res.json(updatedUser);
+    } catch (error) {
+      console.error("Error setting active gym:", error);
+      res.status(500).json({ message: "Failed to set active gym" });
+    }
+  });
+
   // AI Workout Generation
   app.post('/api/ia/treino', isAuthenticated, aiLimiter, async (req: AuthenticatedRequest, res) => {
     try {
