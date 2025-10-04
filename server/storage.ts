@@ -121,6 +121,13 @@ export interface IStorage {
   createGymPlan(planData: InsertGymPlan): Promise<GymPlan>;
   updateGymPlan(planId: string, planData: UpdateGymPlan): Promise<GymPlan | undefined>;
   deleteGymPlan(planId: string): Promise<boolean>;
+  
+  // Personal Trainer operations with multiple gyms
+  createPersonal(personalData: any): Promise<User>;
+  getPersonalsByGym(gymId: string): Promise<User[]>;
+  linkPersonalToGym(personalId: string, gymId: string): Promise<GymAccess>;
+  unlinkPersonalFromGym(personalId: string, gymId: string): Promise<boolean>;
+  getGymsForPersonal(personalId: string): Promise<Gym[]>;
 }
 
 export class MemStorage implements IStorage {
@@ -644,6 +651,9 @@ export class MemStorage implements IStorage {
 
   // Email template operations (memory)
   private emailTemplates: Map<string, EmailTemplate> = new Map();
+  
+  // Gym access for memory storage
+  private gymAccesses: Map<string, GymAccess> = new Map();
 
   async getEmailTemplates(): Promise<EmailTemplate[]> {
     return Array.from(this.emailTemplates.values());
@@ -846,6 +856,67 @@ export class MemStorage implements IStorage {
 
   async deleteGymPlan(planId: string): Promise<boolean> {
     return this.gymPlansList.delete(planId);
+  }
+  
+  // Personal Trainer operations with multiple gyms (memory)
+  async createPersonal(personalData: any): Promise<User> {
+    const personal: User = {
+      id: randomUUID(),
+      email: personalData.email ?? null,
+      firstName: personalData.firstName ?? null,
+      lastName: personalData.lastName ?? null,
+      name: personalData.name ?? `${personalData.firstName || ''} ${personalData.lastName || ''}`.trim(),
+      profileImageUrl: null,
+      userType: 'personal',
+      birthDate: personalData.birthDate ? new Date(personalData.birthDate) : null,
+      phone: personalData.phone ?? null,
+      cref: personalData.cref ?? null,
+      specializations: personalData.specializations ?? null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    this.users.set(personal.id, personal);
+    return personal;
+  }
+
+  async getPersonalsByGym(gymId: string): Promise<User[]> {
+    const accesses = Array.from(this.gymAccessList.values())
+      .filter(a => a.gymId === gymId && a.role === 'personal');
+    
+    return accesses
+      .map(access => this.users.get(access.userId))
+      .filter(Boolean) as User[];
+  }
+
+  async linkPersonalToGym(personalId: string, gymId: string): Promise<GymAccess> {
+    const access: GymAccess = {
+      id: randomUUID(),
+      userId: personalId,
+      gymId: gymId,
+      role: 'personal',
+      permissions: null,
+      createdAt: new Date(),
+    };
+    this.gymAccessList.set(access.id, access);
+    return access;
+  }
+
+  async unlinkPersonalFromGym(personalId: string, gymId: string): Promise<boolean> {
+    const access = Array.from(this.gymAccessList.values())
+      .find(a => a.userId === personalId && a.gymId === gymId);
+    
+    if (access) {
+      return this.gymAccessList.delete(access.id);
+    }
+    return false;
+  }
+
+  async getGymsForPersonal(personalId: string): Promise<Gym[]> {
+    const accesses = Array.from(this.gymAccessList.values())
+      .filter(a => a.userId === personalId);
+    
+    const gymIds = accesses.map(a => a.gymId);
+    return Array.from(this.gyms.values()).filter(g => gymIds.includes(g.id));
   }
 }
 
@@ -1661,6 +1732,100 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error('Error deleting gym plan:', error);
       return false;
+    }
+  }
+  
+  // Personal Trainer operations with multiple gyms
+  async createPersonal(personalData: any): Promise<User> {
+    if (!db) throw new Error("Database not available");
+    
+    const userData = {
+      id: randomUUID(),
+      email: personalData.email,
+      firstName: personalData.firstName ?? null,
+      lastName: personalData.lastName ?? null,
+      name: personalData.name ?? `${personalData.firstName || ''} ${personalData.lastName || ''}`.trim(),
+      userType: 'personal',
+      birthDate: personalData.birthDate ? new Date(personalData.birthDate) : null,
+      phone: personalData.phone ?? null,
+      cref: personalData.cref ?? null,
+      specializations: personalData.specializations ?? null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const [newPersonal] = await db.insert(users).values(userData).returning();
+    return newPersonal;
+  }
+
+  async getPersonalsByGym(gymId: string): Promise<User[]> {
+    if (!db) throw new Error("Database not available");
+    
+    try {
+      const result = await db
+        .select({ user: users })
+        .from(gymAccess)
+        .innerJoin(users, eq(gymAccess.userId, users.id))
+        .where(and(
+          eq(gymAccess.gymId, gymId),
+          eq(gymAccess.role, 'personal')
+        ));
+      
+      return result.map((r: any) => r.user);
+    } catch (error) {
+      console.error('Error getting personals by gym:', error);
+      return [];
+    }
+  }
+
+  async linkPersonalToGym(personalId: string, gymId: string): Promise<GymAccess> {
+    if (!db) throw new Error("Database not available");
+    
+    const [access] = await db
+      .insert(gymAccess)
+      .values({
+        id: randomUUID(),
+        userId: personalId,
+        gymId: gymId,
+        role: 'personal',
+        createdAt: new Date(),
+      })
+      .returning();
+    
+    return access;
+  }
+
+  async unlinkPersonalFromGym(personalId: string, gymId: string): Promise<boolean> {
+    if (!db) throw new Error("Database not available");
+    
+    try {
+      await db
+        .delete(gymAccess)
+        .where(and(
+          eq(gymAccess.userId, personalId),
+          eq(gymAccess.gymId, gymId)
+        ));
+      return true;
+    } catch (error) {
+      console.error('Error unlinking personal from gym:', error);
+      return false;
+    }
+  }
+
+  async getGymsForPersonal(personalId: string): Promise<Gym[]> {
+    if (!db) throw new Error("Database not available");
+    
+    try {
+      const result = await db
+        .select({ gym: gyms })
+        .from(gymAccess)
+        .innerJoin(gyms, eq(gymAccess.gymId, gyms.id))
+        .where(eq(gymAccess.userId, personalId));
+      
+      return result.map((r: any) => r.gym);
+    } catch (error) {
+      console.error('Error getting gyms for personal:', error);
+      return [];
     }
   }
 }
