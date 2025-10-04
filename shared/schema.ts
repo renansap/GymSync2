@@ -338,6 +338,18 @@ export const insertGymAccessSchema = createInsertSchema(gymAccess).omit({
   role: z.enum(["owner", "manager", "staff", "personal"]).default("staff"),
 });
 
+export const insertGymPlanSchema = createInsertSchema(gymPlans).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  price: z.number().min(0, "Preço deve ser maior ou igual a zero"),
+  durationDays: z.number().min(1, "Duração deve ser de pelo menos 1 dia"),
+});
+
+export const updateGymPlanSchema = insertGymPlanSchema.partial().extend({
+  id: z.string().optional(),
+});
+
 export const insertGymSchema = createInsertSchema(gyms).omit({
   id: true,
   inviteCode: true,
@@ -392,6 +404,9 @@ export type InsertGymMember = z.infer<typeof insertGymMemberSchema>;
 export type GymMember = typeof gymMembers.$inferSelect;
 export type InsertGymAccess = z.infer<typeof insertGymAccessSchema>;
 export type GymAccess = typeof gymAccess.$inferSelect;
+export type InsertGymPlan = z.infer<typeof insertGymPlanSchema>;
+export type UpdateGymPlan = z.infer<typeof updateGymPlanSchema>;
+export type GymPlan = typeof gymPlans.$inferSelect;
 export type InsertGym = z.infer<typeof insertGymSchema>;
 export type UpdateGym = z.infer<typeof updateGymSchema>;
 export type Gym = typeof gyms.$inferSelect;
