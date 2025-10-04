@@ -9,6 +9,7 @@ import {
   emailTemplates,
   gymPlans,
   gymMemberSubscriptions,
+  gymAccess,
   type User,
   type UpsertUser,
   type Gym,
@@ -26,6 +27,8 @@ import {
   type InsertGymMember,
   type EmailTemplate,
   type InsertEmailTemplate,
+  type GymAccess,
+  type InsertGymAccess,
 } from "@shared/schema";
 import { randomUUID } from "crypto";
 import { db } from "./db";
@@ -101,6 +104,13 @@ export interface IStorage {
   createEmailTemplate(templateData: InsertEmailTemplate): Promise<EmailTemplate>;
   updateEmailTemplate(templateId: string, templateData: Partial<EmailTemplate>): Promise<EmailTemplate | undefined>;
   deleteEmailTemplate(templateId: string): Promise<boolean>;
+  
+  // Gym Access operations
+  getGymAccessForUser(userId: string): Promise<GymAccess[]>;
+  getGymsForUser(userId: string): Promise<Gym[]>;
+  addGymAccess(data: InsertGymAccess): Promise<GymAccess>;
+  removeGymAccess(id: string): Promise<boolean>;
+  setActiveGym(userId: string, gymId: string | null): Promise<User>;
 }
 
 export class MemStorage implements IStorage {
@@ -737,6 +747,56 @@ export class MemStorage implements IStorage {
       result += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return result;
+  }
+
+  // Gym Access operations (memory)
+  private gymAccessList: Map<string, GymAccess> = new Map();
+
+  async getGymAccessForUser(userId: string): Promise<GymAccess[]> {
+    return Array.from(this.gymAccessList.values()).filter(a => a.userId === userId);
+  }
+
+  async getGymsForUser(userId: string): Promise<Gym[]> {
+    const user = this.users.get(userId);
+    
+    if (user && user.userType === "admin") {
+      return Array.from(this.gyms.values());
+    }
+    
+    const accesses = await this.getGymAccessForUser(userId);
+    const gymIds = accesses.map(a => a.gymId);
+    return Array.from(this.gyms.values()).filter(g => gymIds.includes(g.id));
+  }
+
+  async addGymAccess(data: InsertGymAccess): Promise<GymAccess> {
+    const access: GymAccess = {
+      ...data,
+      id: randomUUID(),
+      permissions: data.permissions ?? null,
+      createdAt: new Date(),
+    };
+    this.gymAccessList.set(access.id, access);
+    return access;
+  }
+
+  async removeGymAccess(id: string): Promise<boolean> {
+    return this.gymAccessList.delete(id);
+  }
+
+  async setActiveGym(userId: string, gymId: string | null): Promise<User> {
+    const user = this.users.get(userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    const updatedUser: User = {
+      ...user,
+      activeGymId: gymId,
+      updatedAt: new Date(),
+    };
+
+    this.users.set(userId, updatedUser);
+    return updatedUser;
   }
 }
 
@@ -1390,6 +1450,93 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(users.id, userId))
       .returning();
+    return updatedUser;
+  }
+
+  // Gym Access operations
+  async getGymAccessForUser(userId: string): Promise<GymAccess[]> {
+    if (!db) throw new Error("Database not available");
+    
+    try {
+      const accesses = await db
+        .select()
+        .from(gymAccess)
+        .where(eq(gymAccess.userId, userId));
+      return accesses;
+    } catch (error) {
+      console.error('Error getting gym access for user:', error);
+      return [];
+    }
+  }
+
+  async getGymsForUser(userId: string): Promise<Gym[]> {
+    if (!db) throw new Error("Database not available");
+    
+    try {
+      // Primeiro, verifica se o usuário é super admin
+      const [user] = await db.select().from(users).where(eq(users.id, userId));
+      
+      if (user && user.userType === "admin") {
+        // Super admin tem acesso a todas as academias
+        const allGyms = await db.select().from(gyms);
+        return allGyms;
+      }
+      
+      // Caso contrário, busca as academias via gym_access
+      const accesses = await db
+        .select({
+          gym: gyms
+        })
+        .from(gymAccess)
+        .innerJoin(gyms, eq(gymAccess.gymId, gyms.id))
+        .where(eq(gymAccess.userId, userId));
+      
+      return accesses.map((a: { gym: Gym }) => a.gym);
+    } catch (error) {
+      console.error('Error getting gyms for user:', error);
+      return [];
+    }
+  }
+
+  async addGymAccess(data: InsertGymAccess): Promise<GymAccess> {
+    if (!db) throw new Error("Database not available");
+    
+    const [access] = await db
+      .insert(gymAccess)
+      .values({
+        ...data,
+        id: randomUUID(),
+        createdAt: new Date(),
+      })
+      .returning();
+    
+    return access;
+  }
+
+  async removeGymAccess(id: string): Promise<boolean> {
+    if (!db) throw new Error("Database not available");
+    
+    try {
+      await db.delete(gymAccess).where(eq(gymAccess.id, id));
+      return true;
+    } catch (error) {
+      console.error('Error removing gym access:', error);
+      return false;
+    }
+  }
+
+  async setActiveGym(userId: string, gymId: string | null): Promise<User> {
+    if (!db) throw new Error("Database not available");
+    
+    const [updatedUser] = await db
+      .update(users)
+      .set({ 
+        activeGymId: gymId, 
+        updatedAt: new Date() 
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    
     return updatedUser;
   }
 }
