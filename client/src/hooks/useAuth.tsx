@@ -4,6 +4,14 @@ import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import type { User, LoginData, PasswordResetData } from '@shared/schema';
 
+interface Gym {
+  id: string;
+  name: string;
+  address: string | null;
+  city: string | null;
+  state: string | null;
+}
+
 interface AuthUser {
   id: string;
   email: string;
@@ -11,16 +19,21 @@ interface AuthUser {
   lastName: string;
   userType: string;
   gymId?: string; // Adicionar gymId para multi-tenant
+  activeGymId?: string | null; // Academia ativa
 }
 
 interface AuthContextType {
   user: AuthUser | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  availableGyms: Gym[];
+  activeGymId: string | null;
   login: (data: LoginData) => Promise<void>;
   logout: () => Promise<void>;
   setPassword: (data: PasswordResetData) => Promise<void>;
   requestPasswordReset: (email: string) => Promise<void>;
+  setActiveGym: (gymId: string) => Promise<void>;
+  refreshGyms: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -50,6 +63,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     },
     retry: false,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+
+  // Fetch available gyms for the user
+  const { data: gyms = [], refetch: refetchGyms } = useQuery<Gym[]>({
+    queryKey: ['/api/gyms/available'],
+    queryFn: async () => {
+      if (!user?.user) return [];
+      
+      try {
+        const response = await fetch('/api/gyms/available', {
+          credentials: 'include',
+        });
+        if (!response.ok) {
+          throw new Error('Failed to fetch available gyms');
+        }
+        return await response.json();
+      } catch (error) {
+        console.error('Error fetching available gyms:', error);
+        return [];
+      }
+    },
+    enabled: !!user?.user,
     staleTime: 1000 * 60 * 5, // 5 minutes
   });
 
@@ -151,6 +187,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
   });
 
+  // Set active gym mutation
+  const setActiveGymMutation = useMutation({
+    mutationFn: async (gymId: string) => {
+      const response = await apiRequest('POST', '/api/gyms/set-active', { gymId });
+      return await response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(['/api/auth/me'], { user: data });
+      queryClient.invalidateQueries({ queryKey: ['/api/gyms/available'] });
+      toast({
+        title: "Academia alterada!",
+        description: "A academia ativa foi alterada com sucesso.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Erro ao trocar academia",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   const login = async (data: LoginData) => {
     await loginMutation.mutateAsync(data);
   };
@@ -167,14 +226,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await requestPasswordResetMutation.mutateAsync(email);
   };
 
+  const setActiveGym = async (gymId: string) => {
+    await setActiveGymMutation.mutateAsync(gymId);
+  };
+
+  const refreshGyms = async () => {
+    await refetchGyms();
+  };
+
   const contextValue: AuthContextType = {
     user: user?.user || null,
     isLoading,
     isAuthenticated: !!user?.user,
+    availableGyms: gyms,
+    activeGymId: user?.user?.activeGymId || null,
     login,
     logout,
     setPassword,
     requestPasswordReset,
+    setActiveGym,
+    refreshGyms,
   };
 
   return (
