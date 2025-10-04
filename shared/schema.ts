@@ -99,6 +99,9 @@ export const users: any = pgTable("users", {
   isActive: boolean("is_active").default(true),
   notes: text("notes"), // observações gerais
   
+  // Academia ativa (para usuários que gerenciam múltiplas academias)
+  activeGymId: varchar("active_gym_id").references(() => gyms.id),
+  
   // Autenticação
   password: varchar("password", { length: 255 }), // hash da senha
   passwordResetToken: varchar("password_reset_token", { length: 255 }),
@@ -237,6 +240,16 @@ export const gymMemberSubscriptions = pgTable("gym_member_subscriptions", {
   createdAt: timestamp("created_at").defaultNow(),
 });
 
+// Gym Access - Controle de acesso a academias
+export const gymAccess = pgTable("gym_access", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  gymId: varchar("gym_id").notNull().references(() => gyms.id),
+  role: varchar("role").notNull().default("staff"), // owner, manager, staff, personal
+  permissions: jsonb("permissions"), // Para futuras granularidades
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
 // Insert schemas
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
@@ -318,6 +331,13 @@ export const insertGymMemberSchema = createInsertSchema(gymMembers).omit({
   createdAt: true,
 });
 
+export const insertGymAccessSchema = createInsertSchema(gymAccess).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  role: z.enum(["owner", "manager", "staff", "personal"]).default("staff"),
+});
+
 export const insertGymSchema = createInsertSchema(gyms).omit({
   id: true,
   inviteCode: true,
@@ -370,6 +390,8 @@ export type InsertPersonalClient = z.infer<typeof insertPersonalClientSchema>;
 export type PersonalClient = typeof personalClients.$inferSelect;
 export type InsertGymMember = z.infer<typeof insertGymMemberSchema>;
 export type GymMember = typeof gymMembers.$inferSelect;
+export type InsertGymAccess = z.infer<typeof insertGymAccessSchema>;
+export type GymAccess = typeof gymAccess.$inferSelect;
 export type InsertGym = z.infer<typeof insertGymSchema>;
 export type UpdateGym = z.infer<typeof updateGymSchema>;
 export type Gym = typeof gyms.$inferSelect;
