@@ -301,6 +301,7 @@ export class MemStorage implements IStorage {
       id: randomUUID(),
       endDate: data.endDate ?? null,
       isActive: data.isActive ?? true,
+      planId: data.planId ?? null,
       createdAt: new Date(),
     };
     this.gymMembers.set(member.id, member);
