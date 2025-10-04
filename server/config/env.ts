@@ -13,6 +13,10 @@ const envSchema = z.object({
   SENDGRID_API_KEY: z.string().startsWith('SG.', 'SENDGRID_API_KEY deve começar com SG.'),
   OPENAI_API_KEY: z.string().optional(),
   
+  // Google OAuth (optional)
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  
   // Replit Auth (optional)
   REPLIT_DOMAINS: z.string().optional(),
   REPL_ID: z.string().optional(),

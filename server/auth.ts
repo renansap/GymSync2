@@ -20,7 +20,7 @@ export const authenticateJWT = (req: AuthenticatedRequest, res: Response, next: 
 
     jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
       if (err) {
-        return res.sendStatus(403);
+        return res.sendStatus(401);
       }
 
       req.user = user as SchemaUser;
@@ -60,12 +60,13 @@ export const setupPassport = (app: express.Application) => {
     }
   });
 
-  // Estratégia Google OAuth
-  passport.use(new GoogleStrategy({
-    clientID: process.env.GOOGLE_CLIENT_ID || "your-google-client-id",
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET || "your-google-client-secret",
-    callbackURL: "/api/auth/google/callback"
-  }, async (accessToken, refreshToken, profile, done) => {
+  // Estratégia Google OAuth (apenas se configurado)
+  if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
+    passport.use(new GoogleStrategy({
+      clientID: env.GOOGLE_CLIENT_ID,
+      clientSecret: env.GOOGLE_CLIENT_SECRET,
+      callbackURL: "/api/auth/google/callback"
+    }, async (accessToken, refreshToken, profile, done) => {
     try {
       // Verificar se o usuário já existe
       let user = await storage.getUserByGoogleId(profile.id);
@@ -98,6 +99,9 @@ export const setupPassport = (app: express.Application) => {
       return done(error, null);
     }
   }));
+  } else {
+    console.log('⚠️  Google OAuth não configurado - variáveis GOOGLE_CLIENT_ID e GOOGLE_CLIENT_SECRET não encontradas');
+  }
 
   app.use(passport.initialize());
   app.use(passport.session());
