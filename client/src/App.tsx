@@ -25,7 +25,6 @@ import MultiLogin from "./pages/multi-login";
 import Login from "./pages/login";
 import Register from "./pages/register";
 import DefinirSenha from "./pages/definir-senha";
-import TestGifs from "./pages/test-gifs";
 
 function Router() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -62,9 +61,6 @@ function Router() {
       <Route path="/admin/templates" component={AdminTemplates} />
       <Route path="/admin/configuracoes" component={AdminConfiguracoes} />
       <Route path="/admin" component={AdminDashboard} />
-      
-      {/* Test route for GIFs */}
-      <Route path="/test-gifs" component={TestGifs} />
 
       {/* Rotas liberadas para preview (?preview=1) */}
       <Route path="/hub-academia" component={HubAcademia} />
