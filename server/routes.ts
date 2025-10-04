@@ -399,20 +399,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Academia module routes
-  const requireAcademiaRole = (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+  const requireAcademiaRole = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     const user = req.user;
     if (!user) {
       return res.status(401).json({ message: "Unauthorized" });
     }
     
-    // Verificar se o usuário é do tipo 'academia'
-    if (user.userType !== 'academia') {
-      return res.status(403).json({ message: "Acesso restrito a academias" });
+    // Verificar se o usuário é do tipo 'academia' OU 'admin' OU tem acesso via gym_access
+    const isAcademia = user.userType === 'academia';
+    const isAdmin = user.userType === 'admin';
+    
+    // Se não for academia nem admin, verificar se tem acesso via activeGymId
+    if (!isAcademia && !isAdmin) {
+      if (!user.activeGymId) {
+        return res.status(403).json({ message: "Acesso restrito a academias" });
+      }
     }
     
-    // Para academias, o gymId é o próprio ID do usuário
-    // ou se tiver gymId específico, usar esse
-    const gymId = user.gymId || user.id;
+    // Determinar gymId baseado na prioridade:
+    // 1. activeGymId (academia selecionada pelo usuário)
+    // 2. gymId do usuário
+    // 3. id do usuário (para academias legacy)
+    let gymId = user.activeGymId || user.gymId || user.id;
+    
     if (!gymId) {
       return res.status(400).json({ message: "Academia não identificada" });
     }

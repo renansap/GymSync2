@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import BottomNavigation from "../components/bottom-navigation";
-import { CreditCard, Plus, Edit2, Trash2, DollarSign, Calendar } from "lucide-react";
+import { CreditCard, Plus, Edit2, Trash2, DollarSign, Calendar, ArrowLeft } from "lucide-react";
 import { GymPlan } from "@shared/schema";
 import { useForm } from "react-hook-form";
 import { apiRequest } from "@/lib/queryClient";
@@ -179,6 +179,15 @@ export default function AcademiaPlanos() {
             </div>
             
             <div className="flex items-center space-x-4">
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={() => window.location.href = "/hub-academia"}
+                data-testid="button-back"
+              >
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Voltar
+              </Button>
               <Button 
                 variant="outline"
                 size="sm"
