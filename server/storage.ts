@@ -824,6 +824,8 @@ export class MemStorage implements IStorage {
     const plan: GymPlan = {
       ...planData,
       id: randomUUID(),
+      isActive: planData.isActive ?? true,
+      price: planData.price ?? 0,
       createdAt: new Date(),
     };
     this.gymPlansList.set(plan.id, plan);

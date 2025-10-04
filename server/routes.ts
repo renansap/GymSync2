@@ -695,6 +695,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ===== ACADEMIA PLANOS =====
+  // Get all plans for a gym
+  app.get('/api/academia/planos', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
+    try {
+      const gymId = (req as any).gymId;
+      const plans = await storage.getGymPlans(gymId);
+      res.json(plans);
+    } catch (error) {
+      console.error("Error fetching gym plans:", error);
+      res.status(500).json({ message: "Failed to fetch gym plans" });
+    }
+  });
+
+  // Create a new plan for a gym
+  app.post('/api/academia/planos', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
+    try {
+      const gymId = (req as any).gymId;
+      const { insertGymPlanSchema } = await import("@shared/schema");
+      
+      const validatedData = insertGymPlanSchema.parse({ ...req.body, gymId });
+      const plan = await storage.createGymPlan(validatedData);
+      
+      res.json(plan);
+    } catch (error: any) {
+      console.error("Error creating gym plan:", error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to create gym plan" });
+    }
+  });
+
+  // Update a plan
+  app.put('/api/academia/planos/:planId', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { planId } = req.params;
+      const gymId = (req as any).gymId;
+      
+      // Verify plan belongs to this gym
+      const existingPlan = await storage.getGymPlan(planId);
+      if (!existingPlan) {
+        return res.status(404).json({ message: "Plano não encontrado" });
+      }
+      if (existingPlan.gymId !== gymId) {
+        return res.status(403).json({ message: "Você não tem permissão para editar este plano" });
+      }
+
+      const { updateGymPlanSchema } = await import("@shared/schema");
+      const validatedData = updateGymPlanSchema.parse(req.body);
+      
+      const updatedPlan = await storage.updateGymPlan(planId, validatedData);
+      
+      if (!updatedPlan) {
+        return res.status(404).json({ message: "Plano não encontrado" });
+      }
+      
+      res.json(updatedPlan);
+    } catch (error: any) {
+      console.error("Error updating gym plan:", error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ message: "Dados inválidos", errors: error.errors });
+      }
+      res.status(500).json({ message: "Failed to update gym plan" });
+    }
+  });
+
+  // Delete a plan
+  app.delete('/api/academia/planos/:planId', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { planId } = req.params;
+      const gymId = (req as any).gymId;
+      
+      // Verify plan belongs to this gym
+      const existingPlan = await storage.getGymPlan(planId);
+      if (!existingPlan) {
+        return res.status(404).json({ message: "Plano não encontrado" });
+      }
+      if (existingPlan.gymId !== gymId) {
+        return res.status(403).json({ message: "Você não tem permissão para excluir este plano" });
+      }
+      
+      const success = await storage.deleteGymPlan(planId);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Plano não encontrado" });
+      }
+      
+      res.json({ message: "Plano excluído com sucesso" });
+    } catch (error) {
+      console.error("Error deleting gym plan:", error);
+      res.status(500).json({ message: "Failed to delete gym plan" });
+    }
+  });
+
 
   // ===== HUB DA ACADEMIA =====
   // Rota principal do Hub da Academia
