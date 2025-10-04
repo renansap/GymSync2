@@ -218,26 +218,39 @@ export const setupAuthRoutes = (app: express.Application) => {
     }
   });
 
-  // Google OAuth
-  app.get('/api/auth/google', passport.authenticate('google', { 
-    scope: ['profile', 'email'] 
-  }));
+  // Google OAuth (apenas se configurado)
+  if (env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET) {
+    app.get('/api/auth/google', passport.authenticate('google', { 
+      scope: ['profile', 'email'] 
+    }));
 
-  app.get('/api/auth/google/callback', 
-    passport.authenticate('google', { failureRedirect: '/login' }),
-    (req, res) => {
-      // Redirecionar baseado no tipo de usuário
-      const user = req.user as User;
-      
-      if (user.userType === 'aluno') {
-        res.redirect('/aluno');
-      } else if (user.userType === 'personal') {
-        res.redirect('/personal');
-      } else {
-        res.redirect('/');
+    app.get('/api/auth/google/callback', 
+      passport.authenticate('google', { failureRedirect: '/login' }),
+      (req, res) => {
+        // Redirecionar baseado no tipo de usuário
+        const user = req.user as User;
+        
+        if (user.userType === 'aluno') {
+          res.redirect('/aluno');
+        } else if (user.userType === 'personal') {
+          res.redirect('/personal');
+        } else {
+          res.redirect('/');
+        }
       }
-    }
-  );
+    );
+  } else {
+    // Rotas alternativas quando Google OAuth não está configurado
+    app.get('/api/auth/google', (req, res) => {
+      res.status(503).json({ 
+        message: "Google OAuth não está configurado neste ambiente. Use login com email e senha." 
+      });
+    });
+    
+    app.get('/api/auth/google/callback', (req, res) => {
+      res.redirect('/login?error=google_not_configured');
+    });
+  }
 
   // Registrar novo usuário
   app.post('/api/auth/register', createAccountLimiter, async (req, res) => {
