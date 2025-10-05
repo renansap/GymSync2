@@ -400,53 +400,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Academia module routes
   const requireAcademiaRole = async (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    let user = req.user;
-    let gymId = null;
+    const user = req.user;
     
-    // Verificar se tem autenticação principal
     if (!user) {
-      // Se não tiver autenticação principal, verificar se tem sessão admin
-      const isAdminAuthenticated = (req.session as any)?.adminAuthenticated;
-      
-      if (isAdminAuthenticated) {
-        // Buscar usuário admin da sessão
-        const adminEmail = (req.session as any)?.adminUser?.email;
-        if (adminEmail) {
-          user = await storage.getUserByEmail(adminEmail);
-        }
-      }
-      
-      if (!user) {
-        return res.status(401).json({ message: "Unauthorized" });
-      }
+      return res.status(401).json({ message: "Unauthorized" });
     }
     
-    // Verificar se o usuário é do tipo 'academia' OU 'admin' OU tem acesso via gym_access
+    // Verificar se o usuário é do tipo 'academia' OU 'admin'
     const isAcademia = user.userType === 'academia';
     const isAdmin = user.userType === 'admin';
     
-    // Se não for academia nem admin, verificar se tem acesso via activeGymId
     if (!isAcademia && !isAdmin) {
-      if (!user.activeGymId) {
-        return res.status(403).json({ message: "Acesso restrito a academias" });
-      }
+      return res.status(403).json({ message: "Acesso restrito a academias e administradores" });
     }
     
     // Determinar gymId baseado na prioridade:
     // 1. activeGymId (academia selecionada pelo usuário)
     // 2. gymId do usuário
     // 3. id do usuário (para academias legacy)
-    gymId = user.activeGymId || user.gymId || user.id;
+    const gymId = user.activeGymId || user.gymId || user.id;
     
     if (!gymId) {
       return res.status(400).json({ message: "Academia não identificada" });
     }
     
-    // Adicionar gymId e user ao request para uso nas rotas
+    // Adicionar gymId ao request para uso nas rotas
     (req as any).gymId = gymId;
-    if (!req.user) {
-      req.user = user;
-    }
+    
     next();
   };
 
@@ -604,10 +584,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Send welcome email
       try {
-        const welcomeToken = emailService.generatePasswordResetToken();
+        const { token, hash } = emailService.generatePasswordResetToken();
         const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
         
-        await storage.setPasswordResetToken(aluno.id, welcomeToken, expires);
+        await storage.setPasswordResetToken(aluno.id, hash, expires);
         
         // Get welcome email template
         const template = await storage.getEmailTemplateByType('aluno', 'welcome');
@@ -616,7 +596,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             aluno.email!,
             aluno.name!,
             'aluno',
-            welcomeToken,
+            token,
             template
           );
           
@@ -665,10 +645,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Send welcome email
       try {
-        const welcomeToken = emailService.generatePasswordResetToken();
+        const { token, hash } = emailService.generatePasswordResetToken();
         const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
         
-        await storage.setPasswordResetToken(personal.id, welcomeToken, expires);
+        await storage.setPasswordResetToken(personal.id, hash, expires);
         
         // Get welcome email template
         const template = await storage.getEmailTemplateByType('personal', 'welcome');
@@ -677,7 +657,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             personal.email!,
             personal.name!,
             'personal',
-            welcomeToken,
+            token,
             template
           );
           
@@ -864,10 +844,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       try {
-        const welcomeToken = emailService.generatePasswordResetToken();
+        const { token, hash } = emailService.generatePasswordResetToken();
         const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
         
-        await storage.setPasswordResetToken(personal.id, welcomeToken, expires);
+        await storage.setPasswordResetToken(personal.id, hash, expires);
         
         const template = await storage.getEmailTemplateByType('personal', 'welcome');
         if (template) {
@@ -875,7 +855,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             personal.email!,
             personal.name!,
             'personal',
-            welcomeToken,
+            token,
             template
           );
         }
@@ -896,7 +876,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // Get personals for a specific gym
-  app.get('/api/personals/gym/:gymId', isAuthenticated, async (req: AuthenticatedRequest, res) => {
+  app.get('/api/personals/gym/:gymId', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
     try {
       const { gymId } = req.params;
       const personals = await storage.getPersonalsByGym(gymId);
@@ -917,9 +897,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to fetch personals" });
     }
   });
+
+  // Resend welcome email for personal trainer
+  app.post('/api/personals/:personalId/resend-welcome', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
+    try {
+      const { personalId } = req.params;
+      
+      // Get the personal trainer
+      const personal = await storage.getUser(personalId);
+      if (!personal || personal.userType !== 'personal') {
+        return res.status(404).json({ message: "Personal trainer não encontrado" });
+      }
+
+      // Check if personal already has a password
+      if (personal.password) {
+        return res.status(400).json({ message: "Personal trainer já definiu sua senha" });
+      }
+
+      // Generate new welcome token
+      const { token, hash } = emailService.generatePasswordResetToken();
+      const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      
+      await storage.setPasswordResetToken(personal.id, hash, expires);
+      
+      // Get welcome email template
+      const template = await storage.getEmailTemplateByType('personal', 'welcome');
+      if (template) {
+        const emailSent = await emailService.sendWelcomeEmail(
+          personal.email!,
+          personal.name!,
+          'personal',
+          token,
+          template
+        );
+        
+        if (emailSent) {
+          res.json({ success: true, message: "Email de boas-vindas reenviado com sucesso" });
+        } else {
+          res.status(500).json({ message: "Erro ao enviar email" });
+        }
+      } else {
+        res.status(500).json({ message: "Template de email não encontrado" });
+      }
+    } catch (error) {
+      console.error("Error resending welcome email:", error);
+      res.status(500).json({ message: "Erro interno do servidor" });
+    }
+  });
   
   // Get gyms for a specific personal
-  app.get('/api/personals/:personalId/gyms', isAuthenticated, async (req: AuthenticatedRequest, res) => {
+  app.get('/api/personals/:personalId/gyms', isAuthenticated, requireAcademiaRole, async (req: AuthenticatedRequest, res) => {
     try {
       const { personalId } = req.params;
       const gyms = await storage.getGymsForPersonal(personalId);
@@ -1097,10 +1124,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.createUser(userData);
       
       // Generate welcome email token
-      const welcomeToken = emailService.generatePasswordResetToken();
+      const { token, hash } = emailService.generatePasswordResetToken();
       const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
       
-      await storage.setPasswordResetToken(user.id, welcomeToken, expires);
+      await storage.setPasswordResetToken(user.id, hash, expires);
       
       // Get welcome email template
       const userType = Array.isArray(userData.userType) ? userData.userType[0] : userData.userType;
@@ -1111,7 +1138,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userData.email as string,
           userName,
           userType as string,
-          welcomeToken,
+          token,
           template
         );
         
@@ -1236,42 +1263,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Authentication routes
-  app.post('/api/auth/login', async (req, res) => {
-    try {
-      const { email, password } = loginSchema.parse(req.body);
-      
-      const user = await storage.getUserByEmail(email);
-      if (!user || !user.password) {
-        return res.status(401).json({ message: "Email ou senha inválidos" });
-      }
-      
-      const isValidPassword = await bcrypt.compare(password, user.password);
-      if (!isValidPassword) {
-        return res.status(401).json({ message: "Email ou senha inválidos" });
-      }
-      
-      // Update last login
-      await storage.updateUser(user.id, { lastLogin: new Date() });
-      
-      // Set session
-      (req.session as any).userId = user.id;
-      (req.session as any).userEmail = user.email;
-      
-      res.json({ 
-        user: { 
-          id: user.id, 
-          email: user.email, 
-          firstName: user.firstName, 
-          lastName: user.lastName, 
-          userType: user.userType 
-        } 
-      });
-    } catch (error) {
-      console.error("Login error:", error);
-      res.status(400).json({ message: "Dados inválidos" });
-    }
-  });
 
 
 
@@ -1361,13 +1352,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ success: true, message: "Se o email existir, você receberá instruções" });
       }
       
-      const resetToken = emailService.generatePasswordResetToken();
+      const { token, hash } = emailService.generatePasswordResetToken();
       const expires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
       
-      await storage.setPasswordResetToken(user.id, resetToken, expires);
+      await storage.setPasswordResetToken(user.id, hash, expires);
       
       const userName = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email;
-      await emailService.sendPasswordResetEmail(user.email!, userName, resetToken);
+      await emailService.sendPasswordResetEmail(user.email!, userName, token);
       
       res.json({ success: true, message: "Se o email existir, você receberá instruções" });
     } catch (error) {
@@ -1621,10 +1612,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Find the admin user that was created
           const adminUser = await storage.getUserByEmail(validatedData.email);
           if (adminUser) {
-            const welcomeToken = emailService.generatePasswordResetToken();
+            const { token, hash } = emailService.generatePasswordResetToken();
             const expires = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
             
-            await storage.setPasswordResetToken(adminUser.id, welcomeToken, expires);
+            await storage.setPasswordResetToken(adminUser.id, hash, expires);
             
             // Get welcome email template
             const template = await storage.getEmailTemplateByType('academia', 'welcome');
@@ -1633,7 +1624,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
                 adminUser.email!,
                 adminUser.name || validatedData.name,
                 'academia',
-                welcomeToken,
+                token,
                 template
               );
               

@@ -16,11 +16,13 @@ import { apiRequest } from "@/lib/queryClient";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Switch } from "@/components/ui/switch";
+import { formatCurrencyFromCents, reaisToCents, centsToReais } from "@/lib/currency";
 
 const planFormSchema = z.object({
   name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
   price: z.number().min(0, "Preço deve ser maior ou igual a zero"),
   durationDays: z.number().min(1, "Duração deve ser de pelo menos 1 dia"),
+  description: z.string().optional(),
   isActive: z.boolean().default(true),
 });
 
@@ -39,12 +41,20 @@ export default function AcademiaPlanos() {
       name: "",
       price: 0,
       durationDays: 30,
+      description: "",
       isActive: true,
     },
   });
 
   const { data: planos = [], isLoading: isLoadingPlanos } = useQuery<GymPlan[]>({
     queryKey: ["/api/academia/planos"],
+  });
+
+  // Ordenar planos do menor para o maior preço
+  const sortedPlanos = [...planos].sort((a, b) => {
+    const priceA = a.price ?? 0;
+    const priceB = b.price ?? 0;
+    return priceA - priceB;
   });
 
   const createPlanoMutation = useMutation({
@@ -109,10 +119,16 @@ export default function AcademiaPlanos() {
   });
 
   const onSubmit = (data: PlanFormData) => {
+    // Converter preço de reais para centavos para o backend
+    const dataWithCents = {
+      ...data,
+      price: reaisToCents(data.price)
+    };
+    
     if (editingPlan) {
-      updatePlanoMutation.mutate({ planId: editingPlan.id, data });
+      updatePlanoMutation.mutate({ planId: editingPlan.id, data: dataWithCents });
     } else {
-      createPlanoMutation.mutate(data);
+      createPlanoMutation.mutate(dataWithCents);
     }
   };
 
@@ -120,8 +136,9 @@ export default function AcademiaPlanos() {
     setEditingPlan(plan);
     form.reset({
       name: plan.name,
-      price: plan.price ?? 0,
+      price: centsToReais(plan.price ?? 0), // Converter centavos para reais
       durationDays: plan.durationDays,
+      description: plan.description ?? "",
       isActive: plan.isActive ?? true,
     });
     setIsDialogOpen(true);
@@ -139,12 +156,6 @@ export default function AcademiaPlanos() {
     form.reset();
   };
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value / 100);
-  };
 
   const formatDuration = (days: number) => {
     if (days === 30 || days === 31) return "1 mês";
@@ -243,12 +254,13 @@ export default function AcademiaPlanos() {
                     name="price"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Preço (em centavos)</FormLabel>
+                        <FormLabel>Preço (R$)</FormLabel>
                         <FormControl>
                           <Input 
                             {...field} 
                             type="number" 
-                            placeholder="Ex: 9900 (R$ 99,00)"
+                            step="0.01"
+                            placeholder="Ex: 99.00"
                             onChange={(e) => field.onChange(Number(e.target.value))}
                             data-testid="input-plan-price"
                           />
@@ -271,6 +283,24 @@ export default function AcademiaPlanos() {
                             placeholder="Ex: 30, 90, 365"
                             onChange={(e) => field.onChange(Number(e.target.value))}
                             data-testid="input-plan-duration"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Descrição (opcional)</FormLabel>
+                        <FormControl>
+                          <Input 
+                            {...field} 
+                            placeholder="Ex: Acesso a todas as aulas, personal trainer incluso, etc."
+                            data-testid="input-plan-description"
                           />
                         </FormControl>
                         <FormMessage />
@@ -328,7 +358,7 @@ export default function AcademiaPlanos() {
             <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
             <p className="text-muted-foreground">Carregando planos...</p>
           </div>
-        ) : planos.length === 0 ? (
+        ) : sortedPlanos.length === 0 ? (
           <Card>
             <CardContent className="text-center py-12">
               <CreditCard className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
@@ -340,7 +370,7 @@ export default function AcademiaPlanos() {
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {planos.map((plano) => (
+            {sortedPlanos.map((plano) => (
               <Card key={plano.id} className={!plano.isActive ? "opacity-60" : ""} data-testid={`card-plan-${plano.id}`}>
                 <CardHeader>
                   <div className="flex justify-between items-start">
@@ -377,9 +407,13 @@ export default function AcademiaPlanos() {
                 <CardContent>
                   <div className="space-y-3">
                     <div className="flex items-center text-2xl font-bold text-primary">
-                      <DollarSign className="h-5 w-5 mr-1" />
-                      {formatCurrency(plano.price ?? 0)}
+                      {formatCurrencyFromCents(plano.price ?? 0)}
                     </div>
+                    {plano.description && (
+                      <div className="text-sm text-muted-foreground">
+                        {plano.description}
+                      </div>
+                    )}
                     <div className="flex items-center text-sm text-muted-foreground">
                       <Calendar className="h-4 w-4 mr-2" />
                       {formatDuration(plano.durationDays)}

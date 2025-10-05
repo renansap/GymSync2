@@ -225,6 +225,7 @@ export const gymPlans = pgTable("gym_plans", {
   name: varchar("name").notNull(),
   price: integer("price").default(0),
   durationDays: integer("duration_days").notNull(),
+  description: text("description"),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
 });
@@ -344,6 +345,7 @@ export const insertGymPlanSchema = createInsertSchema(gymPlans).omit({
 }).extend({
   price: z.number().min(0, "Preço deve ser maior ou igual a zero"),
   durationDays: z.number().min(1, "Duração deve ser de pelo menos 1 dia"),
+  description: z.string().optional(),
 });
 
 export const updateGymPlanSchema = insertGymPlanSchema.partial().extend({

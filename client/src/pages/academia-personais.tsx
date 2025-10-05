@@ -10,7 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import BottomNavigation from "../components/bottom-navigation";
-import { Users, UserPlus, Search, Calendar, Mail, Dumbbell, Building2, Link2, Unlink } from "lucide-react";
+import { Users, UserPlus, Search, Calendar, Mail, Dumbbell, Building2, Link2, Unlink, Send } from "lucide-react";
 import { User, Gym } from "@shared/schema";
 import { useForm } from "react-hook-form";
 import { apiRequest } from "@/lib/queryClient";
@@ -32,7 +32,7 @@ interface PersonalFormData {
 
 export default function AcademiaPersonais() {
   const { toast } = useToast();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, activeGymId } = useAuth();
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -62,7 +62,7 @@ export default function AcademiaPersonais() {
   });
 
   // Get current gym ID from user context or query param
-  const gymId = currentGymId || (availableGyms.length > 0 ? availableGyms[0]?.id : null);
+  const gymId = currentGymId || activeGymId || (availableGyms.length > 0 ? availableGyms[0]?.id : null);
 
   // Fetch personais for current gym
   const { data: personais = [], isLoading: isLoadingPersonais } = useQuery<PersonalWithGyms[]>({
@@ -86,7 +86,7 @@ export default function AcademiaPersonais() {
       setSpecializationsInput("");
       toast({
         title: "Personal cadastrado!",
-        description: "O personal trainer foi cadastrado com sucesso.",
+        description: "O personal trainer foi cadastrado com sucesso. Um email de boas-vindas foi enviado para que ele possa definir sua senha e acessar o sistema.",
       });
     },
     onError: (error: any) => {
@@ -132,6 +132,25 @@ export default function AcademiaPersonais() {
       toast({
         title: "Erro ao desvincular",
         description: error.message || "Erro ao desvincular personal da academia",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Resend welcome email mutation
+  const resendWelcomeEmailMutation = useMutation({
+    mutationFn: (personalId: string) =>
+      apiRequest("POST", `/api/personals/${personalId}/resend-welcome`, {}),
+    onSuccess: () => {
+      toast({
+        title: "Email reenviado!",
+        description: "Email de boas-vindas foi reenviado com sucesso.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao reenviar email",
+        description: error.message || "Erro ao reenviar email de boas-vindas",
         variant: "destructive",
       });
     },
@@ -203,6 +222,9 @@ export default function AcademiaPersonais() {
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Cadastrar Novo Personal Trainer</DialogTitle>
+                <p className="text-sm text-muted-foreground mt-2">
+                  O personal trainer receberá um email de boas-vindas para definir sua senha e acessar o sistema.
+                </p>
               </DialogHeader>
               <Form {...form}>
                 <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 max-h-[70vh] overflow-y-auto">
@@ -456,12 +478,34 @@ export default function AcademiaPersonais() {
                       </div>
                       
                       <div className="text-right">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                          Ativo
-                        </span>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Desde {personal.createdAt ? new Date(personal.createdAt).toLocaleDateString('pt-BR') : ''}
-                        </p>
+                        <div className="flex flex-col items-end gap-1">
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                            personal.password ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
+                          }`}>
+                            {personal.password ? 'Ativo no Sistema' : 'Aguardando Senha'}
+                          </span>
+                          {!personal.password && (
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-orange-600">
+                                Email enviado
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 px-2 text-xs"
+                                onClick={() => resendWelcomeEmailMutation.mutate(personal.id)}
+                                disabled={resendWelcomeEmailMutation.isPending}
+                                data-testid={`button-resend-email-${personal.id}`}
+                              >
+                                <Send className="w-3 h-3 mr-1" />
+                                Reenviar
+                              </Button>
+                            </div>
+                          )}
+                          <p className="text-xs text-muted-foreground">
+                            Desde {personal.createdAt ? new Date(personal.createdAt).toLocaleDateString('pt-BR') : ''}
+                          </p>
+                        </div>
                       </div>
                     </div>
                     

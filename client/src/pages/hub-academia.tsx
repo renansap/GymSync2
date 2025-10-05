@@ -168,7 +168,7 @@ export default function HubAcademia() {
       description: 'Gerenciar personal trainers',
       icon: UserCheck,
       color: 'bg-purple-500',
-      href: '/academia-personais'
+      href: '/academia/personais'
     },
     {
       title: 'Planos',
