@@ -1,5 +1,6 @@
 import type { Express, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
+import jwt from "jsonwebtoken";
 import { storage } from "./storage";
 import { db } from "./db";
 import { isAuthenticated } from "./auth";
@@ -1271,16 +1272,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let userId: string | undefined;
       let userEmail: string | undefined;
       
-      // Check for Replit Auth (OAuth) - user is in req.user with claims
-      if (req.isAuthenticated && req.isAuthenticated() && req.user && (req.user as any).claims) {
-        userId = (req.user as any).claims.sub;
+      // Check for JWT token in Authorization header
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+          const token = authHeader.substring(7);
+          const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
+          userId = decoded.id;
+        } catch (error) {
+          // Token inválido, continuar para outras verificações
+        }
+      }
+      
+      // Check for Passport.js authentication
+      if (!userId && req.isAuthenticated && req.isAuthenticated() && req.user) {
+        // If req.user is already a user object (from Passport), use it directly
+        if (req.user.id) {
+          userId = req.user.id;
+        }
+        // If it's a claims object (OAuth), extract the sub
+        else if ((req.user as any).claims) {
+          userId = (req.user as any).claims.sub;
+        }
       }
       // Check for manual auth - userId is in session
-      else if ((req.session as any)?.userId) {
+      else if (!userId && (req.session as any)?.userId) {
         userId = (req.session as any).userId as string;
       }
       // Check for admin auth - adminAuthenticated in session
-      else if ((req.session as any)?.adminAuthenticated && (req.session as any)?.adminUser?.email) {
+      else if (!userId && (req.session as any)?.adminAuthenticated && (req.session as any)?.adminUser?.email) {
         userEmail = (req.session as any).adminUser.email;
       }
       
