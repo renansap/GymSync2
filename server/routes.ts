@@ -1277,7 +1277,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (authHeader && authHeader.startsWith('Bearer ')) {
         try {
           const token = authHeader.substring(7);
-          const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret') as any;
+          const decoded = jwt.verify(token, process.env.JWT_SECRET || process.env.SESSION_SECRET || 'fallback-secret') as any;
           userId = decoded.id;
         } catch (error) {
           // Token inválido, continuar para outras verificações
