@@ -10,7 +10,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import BottomNavigation from "../components/bottom-navigation";
-import { Users, UserPlus, Search, Calendar, Mail, Dumbbell, Building2, Link2, Unlink, Send } from "lucide-react";
+import { Users, UserPlus, Search, Calendar, Mail, Dumbbell, Building2, Link2, Unlink, Send, Edit } from "lucide-react";
 import { User, Gym } from "@shared/schema";
 import { useForm } from "react-hook-form";
 import { apiRequest } from "@/lib/queryClient";
@@ -36,9 +36,59 @@ export default function AcademiaPersonais() {
   const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingPersonal, setEditingPersonal] = useState<PersonalWithGyms | null>(null);
 
   const [selectedGymIds, setSelectedGymIds] = useState<string[]>([]);
   const [specializationsInput, setSpecializationsInput] = useState<string>("");
+  const [specializationsList, setSpecializationsList] = useState<string[]>([]);
+
+  // Função para adicionar especialização
+  const addSpecialization = () => {
+    const trimmed = specializationsInput.trim();
+    if (trimmed && !specializationsList.includes(trimmed)) {
+      setSpecializationsList([...specializationsList, trimmed]);
+      setSpecializationsInput("");
+    }
+  };
+
+  // Função para remover especialização
+  const removeSpecialization = (index: number) => {
+    setSpecializationsList(specializationsList.filter((_, i) => i !== index));
+  };
+
+  // Função para lidar com Enter no input de especializações
+  const handleSpecializationKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      addSpecialization();
+    }
+  };
+
+  // Função para abrir diálogo de edição
+  const openEditDialog = (personal: PersonalWithGyms) => {
+    setEditingPersonal(personal);
+    form.reset({
+      firstName: personal.firstName || "",
+      lastName: personal.lastName || "",
+      email: personal.email || "",
+      phone: personal.phone || "",
+      cref: personal.cref || "",
+      birthDate: personal.birthDate ? new Date(personal.birthDate).toISOString().split('T')[0] : "",
+    });
+    setSpecializationsList(personal.specializations || []);
+    setSelectedGymIds(personal.gyms?.map(g => g.id) || []);
+    setIsDialogOpen(true);
+  };
+
+  // Função para fechar diálogo e limpar estado
+  const closeDialog = () => {
+    setIsDialogOpen(false);
+    setEditingPersonal(null);
+    form.reset();
+    setSpecializationsInput("");
+    setSpecializationsList([]);
+    setSelectedGymIds([]);
+  };
 
   const form = useForm<PersonalFormData>({
     defaultValues: {
@@ -75,15 +125,12 @@ export default function AcademiaPersonais() {
     mutationFn: (data: PersonalFormData) => apiRequest("POST", "/api/personals", {
       ...data,
       gymIds: selectedGymIds.length > 0 ? selectedGymIds : (gymId ? [gymId] : []),
-      specializations: specializationsInput ? specializationsInput.split(',').map(s => s.trim()) : []
+      specializations: specializationsList
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/personals/gym", gymId] });
       queryClient.invalidateQueries({ queryKey: ["/api/academia/dashboard"] });
-      setIsDialogOpen(false);
-      form.reset();
-      setSelectedGymIds([]);
-      setSpecializationsInput("");
+      closeDialog();
       toast({
         title: "Personal cadastrado!",
         description: "O personal trainer foi cadastrado com sucesso. Um email de boas-vindas foi enviado para que ele possa definir sua senha e acessar o sistema.",
@@ -93,6 +140,31 @@ export default function AcademiaPersonais() {
       toast({
         title: "Erro ao cadastrar",
         description: error.message || "Erro ao cadastrar personal trainer",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Update personal mutation
+  const updatePersonalMutation = useMutation({
+    mutationFn: (data: PersonalFormData) => apiRequest("PUT", `/api/personals/${editingPersonal?.id}`, {
+      ...data,
+      gymIds: selectedGymIds,
+      specializations: specializationsList
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/personals/gym", gymId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/academia/dashboard"] });
+      closeDialog();
+      toast({
+        title: "Personal atualizado!",
+        description: "As informações do personal trainer foram atualizadas com sucesso.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao atualizar",
+        description: error.message || "Erro ao atualizar personal trainer",
         variant: "destructive",
       });
     },
@@ -157,7 +229,11 @@ export default function AcademiaPersonais() {
   });
 
   const onSubmit = (data: PersonalFormData) => {
-    createPersonalMutation.mutate(data);
+    if (editingPersonal) {
+      updatePersonalMutation.mutate(data);
+    } else {
+      createPersonalMutation.mutate(data);
+    }
   };
 
   // Filter personais based on search
@@ -221,9 +297,14 @@ export default function AcademiaPersonais() {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Cadastrar Novo Personal Trainer</DialogTitle>
+                <DialogTitle>
+                  {editingPersonal ? "Editar Personal Trainer" : "Cadastrar Novo Personal Trainer"}
+                </DialogTitle>
                 <p className="text-sm text-muted-foreground mt-2">
-                  O personal trainer receberá um email de boas-vindas para definir sua senha e acessar o sistema.
+                  {editingPersonal 
+                    ? "Atualize as informações do personal trainer."
+                    : "O personal trainer receberá um email de boas-vindas para definir sua senha e acessar o sistema."
+                  }
                 </p>
               </DialogHeader>
               <Form {...form}>
@@ -302,15 +383,44 @@ export default function AcademiaPersonais() {
                   
                   <FormItem>
                     <FormLabel>Especializações</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="Ex: Musculação, Pilates, Crossfit"
-                        value={specializationsInput}
-                        onChange={(e) => setSpecializationsInput(e.target.value)}
-                        data-testid="input-specializations"
-                      />
-                    </FormControl>
-                    <p className="text-sm text-muted-foreground">Separe por vírgula</p>
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        <FormControl>
+                          <Input
+                            placeholder="Ex: Musculação, Pilates, Crossfit"
+                            value={specializationsInput}
+                            onChange={(e) => setSpecializationsInput(e.target.value)}
+                            onKeyPress={handleSpecializationKeyPress}
+                            data-testid="input-specializations"
+                          />
+                        </FormControl>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={addSpecialization}
+                          disabled={!specializationsInput.trim()}
+                        >
+                          Adicionar
+                        </Button>
+                      </div>
+                      {specializationsList.length > 0 && (
+                        <div className="flex flex-wrap gap-2">
+                          {specializationsList.map((spec, index) => (
+                            <Badge key={index} variant="secondary" className="flex items-center gap-1">
+                              {spec}
+                              <button
+                                type="button"
+                                onClick={() => removeSpecialization(index)}
+                                className="ml-1 hover:text-destructive"
+                              >
+                                ×
+                              </button>
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">Digite uma especialização e pressione Enter ou clique em "Adicionar"</p>
                   </FormItem>
                   
                   <FormField
@@ -364,17 +474,20 @@ export default function AcademiaPersonais() {
                     <Button 
                       type="button" 
                       variant="outline" 
-                      onClick={() => setIsDialogOpen(false)}
+                      onClick={closeDialog}
                       data-testid="button-cancel"
                     >
                       Cancelar
                     </Button>
                     <Button 
                       type="submit" 
-                      disabled={createPersonalMutation.isPending}
+                      disabled={createPersonalMutation.isPending || updatePersonalMutation.isPending}
                       data-testid="button-save"
                     >
-                      {createPersonalMutation.isPending ? "Salvando..." : "Salvar"}
+                      {editingPersonal 
+                        ? (updatePersonalMutation.isPending ? "Atualizando..." : "Atualizar")
+                        : (createPersonalMutation.isPending ? "Salvando..." : "Salvar")
+                      }
                     </Button>
                   </div>
                 </form>
@@ -484,24 +597,36 @@ export default function AcademiaPersonais() {
                           }`}>
                             {personal.password ? 'Ativo no Sistema' : 'Aguardando Senha'}
                           </span>
-                          {!personal.password && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs text-orange-600">
-                                Email enviado
-                              </span>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="h-6 px-2 text-xs"
-                                onClick={() => resendWelcomeEmailMutation.mutate(personal.id)}
-                                disabled={resendWelcomeEmailMutation.isPending}
-                                data-testid={`button-resend-email-${personal.id}`}
-                              >
-                                <Send className="w-3 h-3 mr-1" />
-                                Reenviar
-                              </Button>
-                            </div>
-                          )}
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 px-2 text-xs"
+                              onClick={() => openEditDialog(personal)}
+                              data-testid={`button-edit-${personal.id}`}
+                            >
+                              <Edit className="w-3 h-3 mr-1" />
+                              Editar
+                            </Button>
+                            {!personal.password && (
+                              <>
+                                <span className="text-xs text-orange-600">
+                                  Email enviado
+                                </span>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs"
+                                  onClick={() => resendWelcomeEmailMutation.mutate(personal.id)}
+                                  disabled={resendWelcomeEmailMutation.isPending}
+                                  data-testid={`button-resend-email-${personal.id}`}
+                                >
+                                  <Send className="w-3 h-3 mr-1" />
+                                  Reenviar
+                                </Button>
+                              </>
+                            )}
+                          </div>
                           <p className="text-xs text-muted-foreground">
                             Desde {personal.createdAt ? new Date(personal.createdAt).toLocaleDateString('pt-BR') : ''}
                           </p>
